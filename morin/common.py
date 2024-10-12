@@ -31,8 +31,9 @@ class Common:
         return new_date.strftime('%Y-%m-%d')
 
     # значение -> тип значения для clickhouse
-    def get_data_type(self, column , value, partitions):
-        part_list = partitions.replace(' ','').split(',')
+    def get_data_type(self, column, value, partitions):
+        if value == None: return 'None'
+        part_list = partitions.replace(' ', '').split(',')
         if isinstance(value, str):
             if value.lower() == 'false' or value.lower() == 'true':
                 return 'UInt8'
@@ -44,60 +45,84 @@ class Common:
                 '%Y/%m/%d',  # Формат Date через слэш: 2024/09/01
                 '%H:%M:%S',  # Формат Time: 21:20:10
             ]
-            # Попробуем парсить строку как дату
             for date_format in date_formats:
                 try:
                     parsed_date = datetime.strptime(value, date_format)
-                    # Проверим, если дата меньше минимальной допустимой даты для ClickHouse
-                    if parsed_date.year < 1970:  # ClickHouse обычно поддерживает даты начиная с 1970
+                    # Если дата меньше 1970 года — это не допустимая дата для ClickHouse
+                    if parsed_date.year < 1970:
                         return 'String'
                     # Определяем тип на основе формата
                     if date_format in ['%Y-%m-%d', '%d-%m-%Y', '%Y/%m/%d']:
-                        return 'Date'  # Все эти форматы — это Date
+                        return 'Date'  # Это формат Date
                     elif date_format == '%H:%M:%S':
-                        return 'Time'  # Только время
+                        return 'Time'  # Это формат Time
                     else:
                         return 'DateTime'  # Форматы с датой и временем
                 except ValueError:
-                    continue  # Если строка не соответствует формату, проверяем дальше
-            # Попробуем парсить строку как ISO 8601 с временной зоной
+                    continue  # Если строка не соответствует формату, продолжаем проверку
             try:
                 parsed_date = parser.isoparse(value)
-                return 'DateTime'  # Это DateTime с временной зоной
+                return 'DateTime'  # Это формат DateTime с временной зоной
             except (ValueError, TypeError):
-                pass  # Не удалось распарсить как ISO 8601
-            return 'String'  # Если это не дата и не время, возвращаем String
+                pass
+            try:
+                if value.endswith('Z'):
+                    value = value[:-1] + '+00:00'  # Заменяем 'Z' на '+00:00' для UTC
+                if '+' in value and value[-3] == ':':
+                    value = value[:-3] + value[-2:]  # Убираем двоеточие в зоне (+00:00 -> +0000)
+                parsed_date = datetime.fromisoformat(value)
+                return 'DateTime'  # Формат с датой, временем и временной зоной
+            except ValueError:
+                pass
+            return 'String'  # Если ничего не подошло, возвращаем String
+
+        # Если значение булевое
         elif isinstance(value, bool):
             return 'UInt8'
+
+        # Если значение целое число
         elif isinstance(value, int):
             if len(str(abs(value))) > 10 or column in part_list:
                 return 'String'
             return 'Float64'
+
+        # Если значение с плавающей запятой
         elif isinstance(value, float):
             if math.isnan(value):
                 return 'Float64'
             if len(str(int(abs(value)))) > 10 or column in part_list:
                 return 'String'
             return 'Float64'
+
+        # Для всех остальных типов
         else:
             return 'String'
 
-    def column_to_datetime(self,date_str):
+    def column_to_datetime(self, date_str):
         if pd.isna(date_str):
             return None
         date_str = date_str.strip()
+
+        # Обрабатываем таймзону 'Z' (UTC) и заменяем на '+0000'
+        if date_str.endswith('Z'):
+            date_str = date_str[:-1] + '+0000'
+        # Обрабатываем таймзоны вида +00:00 и заменяем на +0000
+        elif '+' in date_str and date_str.endswith(':00'):
+            date_str = date_str[:-3] + date_str[-2:]
+
         date_formats = [
-            "%Y-%m-%dT%H:%M:%S%z",
-            "%Y-%m-%d %H:%M:%S%z",
-            "%Y-%m-%dT%H:%M:%S.%f%z",
-            "%Y-%m-%d %H:%M:%S.%f%z",
-            "%Y-%m-%dT%H:%M:%S",
-            "%Y-%m-%d %H:%M:%S",
-            "%Y-%m-%dT%H:%M:%S.%f",
-            "%Y-%m-%d %H:%M:%S.%f",
-            "%Y-%m-%d",
-            "%d-%m-%Y",
+            "%Y-%m-%dT%H:%M:%S.%f%z",  # 2023-10-22T16:36:15.507+0000
+            "%Y-%m-%d %H:%M:%S.%f%z",  # 2023-10-22 16:36:15.507+0000
+            "%Y-%m-%dT%H:%M:%S%z",  # 2023-10-22T16:36:15+0000
+            "%Y-%m-%d %H:%M:%S%z",  # 2023-10-22 16:36:15+0000
+            "%Y-%m-%dT%H:%M:%S.%f",  # 2023-10-22T16:36:15.507 (без таймзоны)
+            "%Y-%m-%d %H:%M:%S.%f",  # 2023-10-22 16:36:15.507 (без 'T')
+            "%Y-%m-%dT%H:%M:%S",  # 2023-10-22T16:36:15 (без миллисекунд и таймзоны)
+            "%Y-%m-%d %H:%M:%S",  # 2023-10-22 16:36:15 (без 'T', без миллисекунд)
+            "%Y-%m-%d",  # 2023-10-22 (только дата)
+            "%d-%m-%Y"  # 22-10-2023 (европейский формат)
         ]
+
         for fmt in date_formats:
             try:
                 dt = datetime.strptime(date_str, fmt)
@@ -105,8 +130,8 @@ class Common:
             except ValueError:
                 continue
         return None
-
         # список словарей (данные) -> список поле_типданных
+
     def analyze_column_types(self, data, uniq_columns, partitions):
         try:
             column_types = {}
@@ -120,8 +145,10 @@ class Common:
             # Приводим типы столбцов к общему типу
             final_column_types = {}
             for column, types in column_types.items():
+                try: types.remove('None')
+                except: pass
                 if len(types) == 1:
-                    final_column_types[column] = next(iter(types))  # Если тип один, оставляем его
+                    final_column_types[column] = next(iter(types))
                 else:
                     final_column_types[column] = 'String'  # Если разные типы, делаем строкой
             create_table_query = []
@@ -188,6 +215,32 @@ class Common:
             logging.info(f'Ошибка преобразования df: {e}')
         return df
 
+    def to_collect(self, schedule_str, date_str):
+        try:
+            today = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            raise ValueError("Дата должна быть в формате 'YYYY-MM-DD'")
+        day_of_week = today.strftime('%A').lower()  # День недели (например, 'friday')
+        day_of_month = today.day  # Число месяца (например, 22)
+        schedule_list = [s.strip().lower() for s in schedule_str.split(',')]
+        for schedule in schedule_list:
+            if schedule == 'daily':  # Если указано "daily", всегда возвращаем True
+                return True
+            if schedule == day_of_week:  # Проверка дня недели (например, 'friday')
+                return True
+            if schedule.isdigit() and int(schedule) == day_of_month:  # Проверка числа месяца
+                return True
+        return False
 
-
-
+    def spread_table(self, source_list):
+        result_list = []
+        for row in source_list:
+            row_dict = {}
+            for key, value in row.items():
+                if isinstance(value, dict):
+                    for name, inner_value in dict(value).items():
+                        row_dict[f'{key}_{name}'] = inner_value
+                else:
+                    row_dict[f'{key}'] = value
+            result_list.append(row_dict)
+        return result_list

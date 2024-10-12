@@ -13,13 +13,17 @@ import json
 import math
 
 class Clickhouse:
-    def __init__(self, logging_path:str, host: str, port: str, username: str, password: str, database: str):
+    def __init__(self, logging_path:str, host: str, port: str, username: str, password: str, database: str, start:str, add_name:str, err429:bool, backfill_days:int):
         self.host = host
         self.port = port
         self.username = username
         self.password = password
         self.database = database
         self.now = datetime.now()
+        self.start = start
+        self.add_name = add_name
+        self.err429 = err429
+        self.backfill_days = backfill_days
         self.today = datetime.now().date()
         self.common = Common(logging_path)
         logging.basicConfig(filename=logging_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -98,7 +102,6 @@ class Clickhouse:
     def get_missing_dates(self, table_name, report_name, start_date_str):
         try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            # Получение всех существующих дат для заданного report
             query = f"""
             SELECT date
             FROM {table_name}
@@ -121,4 +124,58 @@ class Clickhouse:
         return missing_dates_str
 
 
+    def upload_data(self, platform, report_name, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date):
+        if self.err429 == False:
+            try:
+                n_days_ago = self.today - timedelta(days=self.backfill_days)
+                table_name = f'{platform}_{report_name}_{self.add_name}'
+                if refresh_type == 'delete_date':
+                    refresh = f"ALTER TABLE {table_name} DROP PARTITION '{date}';"
+                elif refresh_type == 'delete_all':
+                    refresh = f"TRUNCATE TABLE {table_name};"
+                else:
+                    refresh = f"OPTIMIZE TABLE {table_name};"
+                data = func_name(date)
+                collect = True
+                if history and datetime.strptime(date, '%Y-%m-%d').date() >= n_days_ago:
+                    collect = False
+                collection_data = pd.DataFrame({'date': pd.to_datetime([date], format='%Y-%m-%d'), 'report': [report_name], 'collect': [collect]})
+                self.create_alter_ch(data, table_name, uniq_columns, partitions, merge_type)
+                df = self.common.check_and_convert_types(data, uniq_columns, partitions)
+                self.ch_execute(refresh)
+                self.ch_insert(df, table_name)
+                self.ch_insert(collection_data, f'{platform}_collection_{self.add_name}')
+                print(f'Данные добавлены. Репорт: {report_name}. Дата: {date}')
+                logging.info(f'Данные добавлены. Репорт: {report_name}. Дата: {date}')
+                time.sleep(delay)
+            except Exception as e:
+                print(f'Ошибка вставки: {e}. Репорт: {report_name}. Дата: {date}')
+                logging.info(f'Ошибка вставки: {e}. Репорт: {report_name}. Дата: {date}')
+                time.sleep(delay)
+        else:
+            raise ValueError("Обнаружена ошибка 429")
 
+
+    def collecting_report(self, platform, report_name, func_name, uniq_columns, partitions, merge_type, refresh_type, history, frequency, delay):
+        logging.info(f"Начинаем сбор {report_name} для клиента: {self.add_name}")
+        print(f"Начинаем сбор {report_name} для клиента: {self.add_name}")
+        create_table_query_collect = f"""
+            CREATE TABLE IF NOT EXISTS {platform}_collection_{self.add_name} (
+            date Date, report String, collect Bool ) ENGINE = ReplacingMergeTree(collect) ORDER BY (report, date)"""
+        optimize_collection = f"OPTIMIZE TABLE {platform}_collection_{self.add_name} FINAL"
+        self.ch_execute(create_table_query_collect)
+        self.ch_execute(optimize_collection)
+        time.sleep(3)
+        if history:
+            date_list = self.get_missing_dates(f'{platform}_collection_{self.add_name}', report_name, self.start)
+            for date in date_list:
+                if self.err429 == False and self.common.to_collect(frequency, date):
+                    print(f'Начинаем сбор. Репорт: {report_name}, Дата: {date}')
+                    logging.info(f'Начинаем сбор. Репорт: {report_name}, Дата: {date}')
+                    self.upload_data(platform, report_name, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
+        else:
+            date = self.today.strftime('%Y-%m-%d')
+            if self.err429 == False and self.common.to_collect(frequency, date):
+                print(f'Начинаем сбор. Репорт: {report_name}, Дата: {date}')
+                logging.info(f'Начинаем сбор. Репорт: {report_name}, Дата: {date}')
+                self.upload_data(platform, report_name, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
