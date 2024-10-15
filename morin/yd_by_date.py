@@ -18,6 +18,7 @@ class YDbyDate:
     def __init__(self, logging_path:str, subd: str, add_name: str, login: str, token: str , host: str, port: str,
                  username: str, password: str, database: str, start: str, backfill_days: int,
                  columns : str,  uniq_columns : str, goals :str = None, attributions :str = None):
+        self.logging_path = logging_path
         self.login = login
         self.token = token
         self.subd = subd
@@ -31,9 +32,9 @@ class YDbyDate:
         self.goals = goals
         self.attributions = attributions
         self.backfill_days = backfill_days
-        self.common = Common(logging_path)
-        self.clickhouse = Clickhouse(logging_path, host, port, username, password, database)
-        logging.basicConfig(filename=logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        self.common = Common(self.logging_path, 'yd')
+        self.clickhouse = Clickhouse(self.logging_path, host, port, username, password, database,)
+        logging.basicConfig(filename=os.path.join(self.logging_path,f'{self.platform}_logs.log'),level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
     def tsv_to_dict(self, response):

@@ -1,5 +1,6 @@
 from .common import Common
 from .clickhouse import Clickhouse
+from .wb_reklama import WBreklama
 import requests
 from datetime import datetime,timedelta
 import clickhouse_connect
@@ -15,7 +16,13 @@ import json
 
 class WBbyDate:
     def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int, reports :str):
+        self.logging_path = logging_path
         self.token = token
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.database = database
         self.subd = subd
         self.add_name = add_name.replace(' ','').replace('-','_')
         self.now = datetime.now()
@@ -23,10 +30,96 @@ class WBbyDate:
         self.start = start
         self.reports = reports
         self.backfill_days = backfill_days
-        self.common = Common(logging_path)
+        self.platform = 'wb'
+        self.common = Common(self.logging_path, self.platform)
         self.err429 = False
-        self.clickhouse = Clickhouse(logging_path, host, port, username, password, database)
-        logging.basicConfig(filename=logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(filename=os.path.join(self.logging_path,f'{self.platform}_logs.log'),level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        self.source_dict = {
+            'realized': {
+                'platform': 'wb',
+                'report_name': 'realized',
+                'func_name': self.get_realized,
+                'uniq_columns': 'realizationreport_id,rrd_id',
+                'partitions': 'realizationreport_id',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'Monday',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
+            'orders': {
+                'platform': 'wb',
+                'report_name': 'orders',
+                'func_name': self.get_orders,
+                'uniq_columns': 'date,srid',
+                'partitions': 'warehouseName',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
+            'sales': {
+                'platform': 'wb',
+                'report_name': 'sales',
+                'func_name': self.get_sales,
+                'uniq_columns': 'date,saleID',
+                'partitions': 'warehouseName',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
+            'orders_changes': {
+                'platform': 'wb',
+                'report_name': 'orders',
+                'func_name': self.get_orders_changes,
+                'uniq_columns': 'date,srid',
+                'partitions': 'warehouseName',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
+            'sales_changes': {
+                'platform': 'wb',
+                'report_name': 'sales',
+                'func_name': self.get_sales_changes,
+                'uniq_columns': 'date,saleID',
+                'partitions': 'warehouseName',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
+            'stocks': {
+                'platform': 'wb',
+                'report_name': 'stocks',
+                'func_name': self.get_stocks,
+                'uniq_columns': 'lastChangeDate',
+                'partitions': 'warehouseName',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
+            'nmreport': {
+                'platform': 'wb',
+                'report_name': 'nmreport',
+                'func_name': self.get_nmreport,
+                'uniq_columns': 'nmID',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
+        }
 
     # дата+токен -> список словарей с заказами (данные)
     def get_orders(self, date):
@@ -127,7 +220,7 @@ class WBbyDate:
         try:
             url = 'https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod'
             headers = {'Authorization': f'Bearer {self.token}'}
-            params = {'dateFrom': self.common.shift_date(date,7), 'dateTo': date}
+            params = {'dateFrom': self.common.shift_date(date,8), 'dateTo': self.common.shift_date(date,1)}
             response = requests.get(url, headers=headers, params=params)
             code = str(response.status_code)
             if code == '200':
@@ -143,82 +236,93 @@ class WBbyDate:
             logging.info(f'Ошибка: {e}, запрос - realized')
             return e
 
-    # тип отчёта, дата -> данные в CH
-    def upload_data(self, report, date):
-        if self.err429 == False:
-            try:
-                reports = {'orders': {'table_name':f'wb_orders{self.add_name}','uniq_columns':'date, srid', 'partitions':'warehouseName' },
-                           'orders_changes': {'table_name': f'wb_orders{self.add_name}', 'uniq_columns': 'date, srid', 'partitions': 'warehouseName'},
-                           'sales': {'table_name': f'wb_sales{self.add_name}', 'uniq_columns': 'date, saleID', 'partitions': 'warehouseName'},
-                           'sales_changes': {'table_name':f'wb_sales{self.add_name}','uniq_columns':'date, saleID', 'partitions':'warehouseName' },
-                           'realized': {'table_name':f'wb_realized{self.add_name}','uniq_columns':'realizationreport_id, rrd_id', 'partitions':'realizationreport_id'}}
-                table_name = reports[report]['table_name']
-                uniq_columns = reports[report]['uniq_columns']
-                partitions = reports[report]['partitions']
-                if report == 'orders': data = self.get_orders(date)
-                if report == 'sales': data = self.get_sales(date)
-                if report == 'orders_changes': data = self.get_orders_changes(date)
-                if report == 'sales_changes': data = self.get_sales_changes(date)
-                if report == 'realized': data = self.get_realized(date)
-                self.clickhouse.create_alter_ch(data, table_name, uniq_columns, partitions, 'ReplacingMergeTree(timeStamp)')
-                df = self.common.check_and_convert_types(data, uniq_columns, partitions)
-                self.clickhouse.ch_insert(df, table_name)
-                print(f'Данные добавлены. Репорт: {report}, Дата: {date}')
-                logging.info(f'Данные добавлены. Репорт: {report}, Дата: {date}')
-            except Exception as e:
-                print(f'Ошибка вставки: {e}')
-                logging.info(f'Ошибка вставки: {e}')
-                raise
-        else:
-            raise ValueError("Обнаружена ошибка 429")
-
-    def upload_report(self, report, date, collection_data):
+    def get_stocks(self, date):
         try:
-            self.upload_data(report, date)
-            self.clickhouse.ch_insert(collection_data, f'wb_main_collection{self.add_name}')
-            print(f'Успешно загружено. Репорт: {report}, Дата: {date}')
-            logging.info(f'Успешно загружено. Репорт: {report}, Дата: {date}')
-            time.sleep(60)
+            # Преобразуем дату в формат RFC3339
+            date_rfc3339 = f"{self.start}T00:00:00.000Z"
+            url = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"
+            headers = {
+                "Authorization": self.token,
+            }
+            params = {
+                "dateFrom": date_rfc3339,
+            }
+            response = requests.get(url, headers=headers, params=params)
+            code = str(response.status_code)
+            if code == '200':
+                return response.json()  # Возвращаем данные при успешном ответе
+            elif code == '429':
+                self.err429 = True  # Фиксируем ошибку 429 (превышение лимита запросов)
+            else:
+                response.raise_for_status()  # Поднимаем исключение для других кодов
         except Exception as e:
-            print(f'Ошибка: {e}! Репорт: {report}, Дата: {date}, ')
-            logging.info(f'Ошибка: {e}! Репорт: {report}, Дата: {date}, ')
-            time.sleep(60)
+            print(f'Ошибка: {e}, запрос - stocks')
+            logging.error(f'Ошибка: {e}, запрос - stocks')
+            return e
 
-    # сбор orders, sales и realized
-    def collecting_report(self, report):
-        logging.info(f"Начинаем сбор {report} для клиента: {self.add_name}")
-        print(f"Начинаем сбор {report} для клиента: {self.add_name}")
-        n_days_ago = self.today - timedelta(days=self.backfill_days)
-        create_table_query_collect = f"""
-            CREATE TABLE IF NOT EXISTS wb_main_collection{self.add_name} (
-            date Date, report String, collect Bool ) ENGINE = ReplacingMergeTree(collect)
-            ORDER BY (report, date)"""
-        optimize_collection = f"OPTIMIZE TABLE wb_main_collection{self.add_name} FINAL"
-        self.clickhouse.ch_execute(create_table_query_collect)
-        self.clickhouse.ch_execute(optimize_collection)
-        time.sleep(10)
-        date_list = self.clickhouse.get_missing_dates(f'wb_main_collection{self.add_name}', report, self.start)
-        for date in date_list:
-            if self.err429 == False:
-                print(f'Начинаем сбор. Репорт: {report}, Дата: {date}')
-                logging.info(f'Начинаем сбор. Репорт: {report}, Дата: {date}')
-                if datetime.strptime(date, '%Y-%m-%d').date() >= n_days_ago: collect = False
-                else: collect = True
-                collection_data = pd.DataFrame({'date': pd.to_datetime([date], format='%Y-%m-%d'), 'report': [report], 'collect': [collect]})
-                self.upload_report(report, date, collection_data)
-        if self.err429 == False:
-            if report == 'orders' or report == 'sales':
-                date = self.today.strftime('%Y-%m-%d')
-                collection_data = pd.DataFrame({'date': [self.today], 'report': [f'{report}_changes'], 'collect': [True]})
-                self.upload_report(f'{report}_changes', date, collection_data)
+    def get_nmreport(self, date):
+        try:
+            url = "https://seller-analytics-api.wildberries.ru/api/v2/nm-report/detail"
+            headers = {
+                "Authorization": self.token,
+                "Content-Type": "application/json"
+            }
+            page = 1
+            all_cards = []  # Хранилище для всех карточек товара
+            begin_date = f"{date} 00:00:00"
+            end_date = f"{date} 23:59:59"
+            while True:
+                payload = {
+                    "period": {
+                        "begin": begin_date,
+                        "end": end_date
+                    },
+                    "page": page
+                }
+                response = requests.post(url, headers=headers, json=payload)
+                code = response.status_code
+                if code == 200:
+                    data = response.json().get('data', {})
+                    cards = data.get('cards', [])
+                    all_cards.extend(cards)  # Добавляем карточки на текущей странице
+                    is_next_page = data.get('isNextPage', False)
+                    if not is_next_page:
+                        break  # Если страниц больше нет, выходим из цикла
+                    page += 1  # Переходим на следующую страницу
+                else:
+                    response.raise_for_status()
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_cards)))
+        except Exception as e:
+            logging.error(f'Ошибка: {e}. Дата: {date}. Запрос - nm_report.')
+            print(f'Ошибка: {e}, запрос - nm_report_detail за {date}')
+            return e
 
+    # тип отчёта, дата -> данные в CH
     def collecting_manager(self):
-        report_list = self.reports.replace(' ','').lower().split(',')
+        report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-            if report in ['orders','sales','realized']:
-                self.collecting_report(report)
-            if report in ['reklama']:
-                pass
+            if report == 'reklama':
+                self.reklama = WBreklama(self.logging_path, self.subd, self.add_name, self.token, self.host, self.port, self.username, self.password,
+                                             self.database, self.start,  self.backfill_days)
+                self.reklama.wb_reklama_collector()
+            else:
+                self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password,
+                                             self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
+                self.clickhouse.collecting_report(
+                    self.source_dict[report]['platform'],
+                    self.source_dict[report]['report_name'],
+                    self.source_dict[report]['func_name'],
+                    self.source_dict[report]['uniq_columns'],
+                    self.source_dict[report]['partitions'],
+                    self.source_dict[report]['merge_type'],
+                    self.source_dict[report]['refresh_type'],
+                    self.source_dict[report]['history'],
+                    self.source_dict[report]['frequency'],
+                    self.source_dict[report]['delay']
+                )
+
+
+
 
 
 

@@ -13,7 +13,7 @@ import json
 import math
 
 class Clickhouse:
-    def __init__(self, logging_path:str, host: str, port: str, username: str, password: str, database: str, start:str, add_name:str, err429:bool, backfill_days:int):
+    def __init__(self, logging_path:str, host: str, port: str, username: str, password: str, database: str, start:str, add_name:str, err429:bool, backfill_days:int, platform:str):
         self.host = host
         self.port = port
         self.username = username
@@ -25,7 +25,8 @@ class Clickhouse:
         self.err429 = err429
         self.backfill_days = backfill_days
         self.today = datetime.now().date()
-        self.common = Common(logging_path)
+        self.platform = platform
+        self.common = Common(logging_path,self.platform)
         logging.basicConfig(filename=logging_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # датафрейм, название таблицы -> вставка данных

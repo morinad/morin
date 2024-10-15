@@ -12,10 +12,12 @@ import json
 import math
 
 class Common:
-    def __init__(self, logging_path:str, ):
+    def __init__(self, logging_path:str, platform:str ):
+        self.logging_path = logging_path
         self.now = datetime.now()
         self.today = datetime.now().date()
-        logging.basicConfig(filename=logging_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        self.platform = platform
+        logging.basicConfig(filename=os.path.join(self.logging_path,f'{self.platform}_logs.log'), level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def shorten_text(self, text):
         # Используем хеш-функцию md5 для сокращения строки

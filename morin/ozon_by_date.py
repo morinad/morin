@@ -1,5 +1,6 @@
 from .common import Common
 from .clickhouse import Clickhouse
+from .ozon_reklama import OZONreklama
 import requests
 from datetime import datetime,timedelta
 import clickhouse_connect
@@ -31,10 +32,10 @@ class OZONbyDate:
         self.start = start
         self.reports = reports
         self.backfill_days = backfill_days
-        self.common = Common(logging_path)
+        self.platform = 'ozon'
+        self.common = Common(logging_path, self.platform)
         self.err429 = False
-
-        logging.basicConfig(filename=logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(filename=os.path.join(self.logging_path,f'{self.platform}_logs.log'),level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
             'transactions': {
                 'platform': 'ozon',
@@ -549,19 +550,25 @@ class OZONbyDate:
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-            self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password,
-                                         self.database, self.start, self.add_name, self.err429, self.backfill_days)
-            self.clickhouse.collecting_report(
-                self.source_dict[report]['platform'],
-                self.source_dict[report]['report_name'],
-                self.source_dict[report]['func_name'],
-                self.source_dict[report]['uniq_columns'],
-                self.source_dict[report]['partitions'],
-                self.source_dict[report]['merge_type'],
-                self.source_dict[report]['refresh_type'],
-                self.source_dict[report]['history'],
-                self.source_dict[report]['frequency'],
-                self.source_dict[report]['delay']
-            )
+            if report == 'reklama':
+                self.reklama = OZONreklama(self.logging_path, self.subd, self.add_name, self.clientid, self.token,
+                                           self.host, self.port, self.username, self.password,
+                                             self.database, self.start,  self.backfill_days)
+                self.reklama.ozon_reklama_collector()
+            else:
+                self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password,
+                                             self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
+                self.clickhouse.collecting_report(
+                    self.source_dict[report]['platform'],
+                    self.source_dict[report]['report_name'],
+                    self.source_dict[report]['func_name'],
+                    self.source_dict[report]['uniq_columns'],
+                    self.source_dict[report]['partitions'],
+                    self.source_dict[report]['merge_type'],
+                    self.source_dict[report]['refresh_type'],
+                    self.source_dict[report]['history'],
+                    self.source_dict[report]['frequency'],
+                    self.source_dict[report]['delay']
+                )
 
 
