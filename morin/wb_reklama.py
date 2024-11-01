@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 class WBreklama:
     def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int):
-        self.logging_path = logging_path
+        self.logging_path = os.path.join(logging_path,f'wb_ads_logs.log')
         self.token = token
         self.host = host
         self.port = port
@@ -25,7 +25,7 @@ class WBreklama:
         self.backfill_days = backfill_days
         self.err429 = False
         self.client = clickhouse_connect.get_client(host=host, port=port, username=username, password=password, database=database)
-        logging.basicConfig(filename=logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def ch_insert(self, df, to_table):
         data_tuples = [tuple(x) for x in df.to_numpy()]
@@ -173,12 +173,13 @@ class WBreklama:
                     extract_app = app['appType']
                     for nm in app['nm']:
                         extract_nm = nm['nmId']
-                        out_json.append({
-                            'advertId': extract_advert,
+                        try:
+                            out_json.append({
+                                'advertId': extract_advert,
                                 'date': extract_date,
                                 'appType': extract_app,
                                 'nmId': extract_nm,
-                                'views': nm['views'],  # Исправил 'views' на правильное значение
+                                'views': nm['views'],
                                 'clicks': nm['clicks'],
                                 'sum': nm['sum'],
                                 'atbs': nm['atbs'],
@@ -186,7 +187,10 @@ class WBreklama:
                                 'shks': nm['shks'],
                                 'sum_price': nm['sum_price'],
                                 'name': nm['name']
-                            })
+                                })
+                        except Exception as e:
+                            logging.info(f"Строка nm: {nm}. Ошибка тут: {e}")
+                            print(f"Строка nm: {nm}. Ошибка тут: {e}")
         df = pd.DataFrame(out_json)
         df['date'] = pd.to_datetime(df['date']).dt.date
         pd.set_option('display.max_columns', None)

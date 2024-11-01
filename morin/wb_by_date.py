@@ -16,7 +16,7 @@ import json
 
 class WBbyDate:
     def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int, reports :str):
-        self.logging_path = logging_path
+        self.logging_path = os.path.join(logging_path,f'wb_logs.log')
         self.token = token
         self.host = host
         self.port = port
@@ -31,13 +31,14 @@ class WBbyDate:
         self.reports = reports
         self.backfill_days = backfill_days
         self.platform = 'wb'
-        self.common = Common(self.logging_path, self.platform)
+        self.common = Common(self.logging_path)
         self.err429 = False
-        logging.basicConfig(filename=os.path.join(self.logging_path,f'{self.platform}_logs.log'),level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
             'realized': {
                 'platform': 'wb',
                 'report_name': 'realized',
+                'upload_table': 'realized',
                 'func_name': self.get_realized,
                 'uniq_columns': 'realizationreport_id,rrd_id',
                 'partitions': 'realizationreport_id',
@@ -50,6 +51,7 @@ class WBbyDate:
             'orders': {
                 'platform': 'wb',
                 'report_name': 'orders',
+                'upload_table': 'orders',
                 'func_name': self.get_orders,
                 'uniq_columns': 'date,srid',
                 'partitions': 'warehouseName',
@@ -62,6 +64,7 @@ class WBbyDate:
             'sales': {
                 'platform': 'wb',
                 'report_name': 'sales',
+                'upload_table': 'sales',
                 'func_name': self.get_sales,
                 'uniq_columns': 'date,saleID',
                 'partitions': 'warehouseName',
@@ -73,7 +76,8 @@ class WBbyDate:
             },
             'orders_changes': {
                 'platform': 'wb',
-                'report_name': 'orders',
+                'report_name': 'orders_changes',
+                'upload_table': 'orders',
                 'func_name': self.get_orders_changes,
                 'uniq_columns': 'date,srid',
                 'partitions': 'warehouseName',
@@ -85,7 +89,8 @@ class WBbyDate:
             },
             'sales_changes': {
                 'platform': 'wb',
-                'report_name': 'sales',
+                'report_name': 'sales_changes',
+                'upload_table': 'sales',
                 'func_name': self.get_sales_changes,
                 'uniq_columns': 'date,saleID',
                 'partitions': 'warehouseName',
@@ -98,6 +103,7 @@ class WBbyDate:
             'stocks': {
                 'platform': 'wb',
                 'report_name': 'stocks',
+                'upload_table': 'stocks',
                 'func_name': self.get_stocks,
                 'uniq_columns': 'lastChangeDate',
                 'partitions': 'warehouseName',
@@ -110,6 +116,7 @@ class WBbyDate:
             'nmreport': {
                 'platform': 'wb',
                 'report_name': 'nmreport',
+                'upload_table': 'nmreport',
                 'func_name': self.get_nmreport,
                 'uniq_columns': 'nmID',
                 'partitions': '',
@@ -311,6 +318,7 @@ class WBbyDate:
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],
                     self.source_dict[report]['report_name'],
+                    self.source_dict[report]['upload_table'],
                     self.source_dict[report]['func_name'],
                     self.source_dict[report]['uniq_columns'],
                     self.source_dict[report]['partitions'],

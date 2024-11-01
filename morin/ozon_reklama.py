@@ -13,7 +13,7 @@ import io
 
 class OZONreklama:
     def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int):
-        self.logging_path = logging_path
+        self.logging_path = os.path.join(logging_path,f'ozon_ads_logs.log')
         self.clientid = clientid
         self.token = token
         self.host = host
@@ -30,7 +30,7 @@ class OZONreklama:
         self.backfill_days = backfill_days
         self.err429 = False
         self.client = clickhouse_connect.get_client(host=host, port=port, username=username, password=password, database=database)
-        logging.basicConfig(filename=logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
     def ch_insert(self, df, to_table):

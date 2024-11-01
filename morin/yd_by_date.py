@@ -18,7 +18,7 @@ class YDbyDate:
     def __init__(self, logging_path:str, subd: str, add_name: str, login: str, token: str , host: str, port: str,
                  username: str, password: str, database: str, start: str, backfill_days: int,
                  columns : str,  uniq_columns : str, goals :str = None, attributions :str = None):
-        self.logging_path = logging_path
+        self.logging_path = os.path.join(logging_path,f'yd_logs.log')
         self.login = login
         self.token = token
         self.subd = subd
@@ -30,12 +30,53 @@ class YDbyDate:
         self.columns = columns
         self.uniq_columns = uniq_columns
         self.goals = goals
+        self.err429
         self.attributions = attributions
         self.backfill_days = backfill_days
-        self.common = Common(self.logging_path, 'yd')
-        self.clickhouse = Clickhouse(self.logging_path, host, port, username, password, database,)
-        logging.basicConfig(filename=os.path.join(self.logging_path,f'{self.platform}_logs.log'),level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
+        self.common = Common(self.logging_path)
+        logging.basicConfig(filename=self.logging_path, level=logging.INFO,
+                            format='%(asctime)s - %(levelname)s - %(message)s')
+        self.source_dict = {
+            'stat': {
+                'platform': 'yd_stat',
+                'report_name': 'stat',
+                'upload_table': 'stat',
+                'func_name': self.get_stat,
+                'uniq_columns': 'Date',
+                'partitions': 'Date',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_date',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 20
+            },
+            'data': {
+                'platform': 'yd_data',
+                'report_name': 'data',
+                'upload_table': 'data',
+                'func_name': self.get_data,
+                'uniq_columns': 'timeStamp',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 20
+            },
+            'ads': {
+                'platform': 'yd_ads',
+                'report_name': 'ads',
+                'upload_table': 'ads',
+                'func_name': self.collect_campaign_ads,
+                'uniq_columns': 'AdId',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 20
+            }
+        }
 
     def tsv_to_dict(self, response):
         tsv_data = response.text
@@ -97,7 +138,11 @@ class YDbyDate:
             logging.info(f'Ошибка: {e}')
             raise
 
+    def get_data(self, date):
+        return get_report(self.start, self.yesterday)
 
+    def get_stat(self, date):
+        return get_report(self.date, self.date)
 
     def get_campaigns(self):
         campaigns_url = 'https://api.direct.yandex.com/json/v5/campaigns'
@@ -143,7 +188,7 @@ class YDbyDate:
             logging.info(f'Ошибка получения объявлений по кампании: {campaign_id}')
 
 
-    def collect_campaign_ads(self):
+    def collect_campaign_ads(self, date):
         try:
             final_list = []
             datestr = self.today.strftime('%Y-%m-%d')
@@ -167,88 +212,30 @@ class YDbyDate:
             logging.info(f'Ошибка сбора всех объявлений: {e}')
 
 
-    def upload_data(self, report_type, date):
-        try:
-            table_name = f'yd_{report_type}{self.add_name}'
-            if report_type == 'stat':
-                partitions = 'Date'
-                data = self.get_report(date, date)
-                delete_partition = f"ALTER TABLE yd_{report_type}{self.add_name} DROP PARTITION '{date}';"
-                self.clickhouse.create_alter_ch(data, table_name, self.uniq_columns, partitions, 'MergeTree')
-            elif report_type == 'ads':
-                partitions = ''
-                data = self.collect_campaign_ads()
-                self.clickhouse.create_alter_ch(data, table_name, self.uniq_columns, partitions,'ReplacingMergeTree(timeStamp)')
-                delete_partition = f"OPTIMIZE TABLE yd_{report_type}{self.add_name};"
-            else:
-                partitions = ''
-                data = self.get_report(self.start, self.yesterday.strftime('%Y-%m-%d'))
-                delete_partition = f"TRUNCATE TABLE yd_{report_type}{self.add_name};"
-                self.clickhouse.create_alter_ch(data, table_name, self.uniq_columns, partitions, 'MergeTree')
-            df = self.common.check_and_convert_types(data, self.uniq_columns, partitions)
-            self.clickhouse.ch_execute(delete_partition)
-            self.clickhouse.ch_insert(df, table_name)
-            print(f'Данные добавлены. Репорт: {self.add_name}, Дата: {date}')
-            logging.info(f'Данные добавлены. Репорт: {self.add_name}, Дата: {date}')
-        except Exception as e:
-            print(f'Ошибка вставки: {e}')
-            logging.info(f'Ошибка вставки: {e}')
-            raise
-
-
-
-    def upload_report(self, report_type, date, collection_data):
-        try:
-            self.upload_data(report_type, date)
-            self.clickhouse.ch_insert(collection_data, f'yd_{report_type}_collection{self.add_name}')
-            print(f'Успешно загружено. Репорт: {self.add_name}, Дата: {date}')
-            logging.info(f'Успешно загружено. Репорт: {self.add_name}, Дата: {date}')
-            time.sleep(10)
-        except Exception as e:
-            print(f'Ошибка: {e}! Репорт: {self.add_name}, Дата: {date}, ')
-            logging.info(f'Ошибка: {e}! Репорт: {self.add_name}, Дата: {date}, ')
-            time.sleep(60)
-
-
-    def collecting_report(self, report_type, what):
-        today_str = self.today.strftime('%Y-%m-%d')
-        n_days_ago = self.today - timedelta(days=self.backfill_days)
-        logging.info(f"Начинаем сбор {what} для: {self.add_name}")
-        print(f"Начинаем сбор {what} для: {self.add_name}")
-        create_table_query_collect = f"""
-            CREATE TABLE IF NOT EXISTS yd_{report_type}_collection{self.add_name} (
-            date Date, report String, collect Bool ) ENGINE = ReplacingMergeTree(collect)
-            ORDER BY (date)"""
-        optimize_collection = f"OPTIMIZE TABLE yd_{report_type}_collection{self.add_name} FINAL"
-        self.clickhouse.ch_execute(create_table_query_collect)
-        self.clickhouse.ch_execute(optimize_collection)
-        time.sleep(10)
-        if report_type == "stat":
-            date_list = self.clickhouse.get_missing_dates(f'yd_{report_type}_collection{self.add_name}', self.add_name, self.start)
-            for date in date_list:
-                print(f'Начинаем сбор {what}, Репорт: {self.add_name}, Дата: {date}')
-                logging.info(f'Начинаем сбор {what}, Репорт: {self.add_name}, Дата: {date}')
-                if datetime.strptime(date, '%Y-%m-%d').date() >= n_days_ago:
-                    collect = False
-                else:
-                    collect = True
-                collection_data = pd.DataFrame({'date': pd.to_datetime([date], format='%Y-%m-%d'), 'report': [self.add_name],'collect': [collect]})
-                self.upload_report(report_type, date, collection_data)
-        else:
-            print(f'Начинаем сбор {what}. Репорт: {self.add_name}, Дата: {today_str}')
-            logging.info(f'Начинаем сбор {what}. Репорт: {self.add_name}, Дата: {today_str}')
-            collection_data = pd.DataFrame(
-                {'date': pd.to_datetime([today_str], format='%Y-%m-%d'), 'report': [self.add_name], 'collect': [True]})
-            self.upload_report(report_type, today_str, collection_data)
-
-
     def collecting_manager(self):
         if self.columns == 'ads':
-            self.collecting_report('ads', "объявлений")
-        elif self.uniq_columns !='Date':
-            self.collecting_report('data', 'данных')
+            self.platform = 'yd_ads'
+        elif self.uniq_columns != 'Date':
+            self.platform = 'yd_data'
         else:
-            self.collecting_report('stat', 'статистики по дням')
+            self.platform = 'yd_stat'
+        self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password, self.database,
+                                     self.start, self.add_name, self.err429, self.backfill_days, self.platform)
+        self.clickhouse.collecting_report(
+            self.source_dict[report]['platform'],
+            self.source_dict[report]['report_name'],
+            self.source_dict[report]['upload_table'],
+            self.source_dict[report]['func_name'],
+            self.source_dict[report]['uniq_columns'],
+            self.source_dict[report]['partitions'],
+            self.source_dict[report]['merge_type'],
+            self.source_dict[report]['refresh_type'],
+            self.source_dict[report]['history'],
+            self.source_dict[report]['frequency'],
+            self.source_dict[report]['delay']
+        )
+
+
 
 
 

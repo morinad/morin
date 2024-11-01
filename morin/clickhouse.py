@@ -14,6 +14,7 @@ import math
 
 class Clickhouse:
     def __init__(self, logging_path:str, host: str, port: str, username: str, password: str, database: str, start:str, add_name:str, err429:bool, backfill_days:int, platform:str):
+        self.logging_path = logging_path
         self.host = host
         self.port = port
         self.username = username
@@ -26,8 +27,17 @@ class Clickhouse:
         self.backfill_days = backfill_days
         self.today = datetime.now().date()
         self.platform = platform
-        self.common = Common(logging_path,self.platform)
-        logging.basicConfig(filename=logging_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        self.common = Common(logging_path)
+        logging.basicConfig(filename=self.logging_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    def convert_column_to_text(self, client, table_name, column_name, column_type):
+        client.command(f"""ALTER TABLE {table_name} ADD COLUMN test {column_type};""")
+        client.command(f"""ALTER TABLE {table_name} UPDATE test = toString({column_name}) WHERE 1;""")
+        time.sleep(3)
+        client.command(f"OPTIMIZE TABLE {table_name} FINAL")
+        time.sleep(3)
+        client.command(f"""ALTER TABLE {table_name} DROP COLUMN {column_name};""")
+        client.command(f"""ALTER TABLE {table_name} RENAME COLUMN test TO {column_name};""")
 
     # датафрейм, название таблицы -> вставка данных
     def ch_insert(self, df, to_table):
@@ -81,14 +91,21 @@ class Clickhouse:
             result = client.query(query)
             columns_info = result.result_rows
             current_set = set([f"{col[0]} {col[1]}" for col in columns_info])
+            current_names_set = set([f"{col[0].strip()}" for col in columns_info])
             diff = list(upload_set - current_set)
             if len(diff) > 0:
                 start_alter_exp=f'ALTER TABLE {table_name} '
                 for d in diff:
-                    alter_exp =start_alter_exp + 'ADD COLUMN IF NOT EXISTS ' + d + ' AFTER timeStamp;'
-                    print(f'Попытка изменения {table_name}, Формула: {alter_exp}')
-                    logging.info(f'Попытка изменения {table_name}, Формула: {alter_exp}')
-                    client.query(alter_exp)
+                    column_name = d.split(' ')[0].strip()
+                    column_type = d.split(' ')[1].strip()
+                    if column_name in current_names_set and 'String' in column_type:
+                        self.convert_column_to_text(client, table_name, column_name, column_type)
+                        alter_exp = f"преобразуем столбец {column_name} в текст"
+                    else:
+                        alter_exp =start_alter_exp + 'ADD COLUMN IF NOT EXISTS ' + d + ' AFTER timeStamp;'
+                        print(f'Попытка изменения {table_name}, Формула: {alter_exp}')
+                        logging.info(f'Попытка изменения {table_name}, Формула: {alter_exp}')
+                        client.query(alter_exp)
                     print(f'Успешное изменение {table_name}, Формула: {alter_exp}')
                     logging.info(f'Успешное изменение {table_name}, Формула: {alter_exp}')
                     time.sleep(2)
@@ -125,11 +142,11 @@ class Clickhouse:
         return missing_dates_str
 
 
-    def upload_data(self, platform, report_name, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date):
+    def upload_data(self, platform, report_name,upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date):
         if self.err429 == False:
             try:
                 n_days_ago = self.today - timedelta(days=self.backfill_days)
-                table_name = f'{platform}_{report_name}_{self.add_name}'
+                table_name = f'{platform}_{upload_table}_{self.add_name}'
                 if refresh_type == 'delete_date':
                     refresh = f"ALTER TABLE {table_name} DROP PARTITION '{date}';"
                 elif refresh_type == 'delete_all':
@@ -157,7 +174,7 @@ class Clickhouse:
             raise ValueError("Обнаружена ошибка 429")
 
 
-    def collecting_report(self, platform, report_name, func_name, uniq_columns, partitions, merge_type, refresh_type, history, frequency, delay):
+    def collecting_report(self, platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, frequency, delay):
         logging.info(f"Начинаем сбор {report_name} для клиента: {self.add_name}")
         print(f"Начинаем сбор {report_name} для клиента: {self.add_name}")
         create_table_query_collect = f"""
@@ -173,10 +190,10 @@ class Clickhouse:
                 if self.err429 == False and self.common.to_collect(frequency, date):
                     print(f'Начинаем сбор. Репорт: {report_name}, Дата: {date}')
                     logging.info(f'Начинаем сбор. Репорт: {report_name}, Дата: {date}')
-                    self.upload_data(platform, report_name, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
+                    self.upload_data(platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
         else:
             date = self.today.strftime('%Y-%m-%d')
             if self.err429 == False and self.common.to_collect(frequency, date):
                 print(f'Начинаем сбор. Репорт: {report_name}, Дата: {date}')
                 logging.info(f'Начинаем сбор. Репорт: {report_name}, Дата: {date}')
-                self.upload_data(platform, report_name, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
+                self.upload_data(platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)

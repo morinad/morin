@@ -17,7 +17,7 @@ from dateutil.relativedelta import relativedelta
 
 class OZONbyDate:
     def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int, reports :str):
-        self.logging_path = logging_path
+        self.logging_path = os.path.join(logging_path,f'ozon_logs.log')
         self.clientid = clientid
         self.token = token
         self.host = host
@@ -33,13 +33,14 @@ class OZONbyDate:
         self.reports = reports
         self.backfill_days = backfill_days
         self.platform = 'ozon'
-        self.common = Common(logging_path, self.platform)
+        self.common = Common(self.logging_path)
         self.err429 = False
-        logging.basicConfig(filename=os.path.join(self.logging_path,f'{self.platform}_logs.log'),level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
             'transactions': {
                 'platform': 'ozon',
                 'report_name': 'transactions',
+                'upload_table': 'transactions',
                 'func_name': self.get_transactions,
                 'uniq_columns': 'operation_date, operation_id',
                 'partitions': 'operation_date',
@@ -52,6 +53,7 @@ class OZONbyDate:
             'stocks': {
                 'platform': 'ozon',
                 'report_name': 'stocks',
+                'upload_table': 'stocks',
                 'func_name': self.get_stock_on_warehouses,
                 'uniq_columns': 'sku',
                 'partitions': 'warehouse_name',
@@ -64,6 +66,7 @@ class OZONbyDate:
             'products': {
                 'platform': 'ozon',
                 'report_name': 'products',
+                'upload_table': 'products',
                 'func_name': self.get_all_products,
                 'uniq_columns': 'product_id',
                 'partitions': '',
@@ -76,6 +79,7 @@ class OZONbyDate:
             'returns_fbo': {
                 'platform': 'ozon',
                 'report_name': 'returns_fbo',
+                'upload_table': 'returns_fbo',
                 'func_name': self.get_all_returns_fbo,
                 'uniq_columns': 'return_id',
                 'partitions': '',
@@ -88,6 +92,7 @@ class OZONbyDate:
             'returns_fbs': {
                 'platform': 'ozon',
                 'report_name': 'returns_fbs',
+                'upload_table': 'returns_fbs',
                 'func_name': self.get_all_returns_fbs,
                 'uniq_columns': 'id',
                 'partitions': '',
@@ -100,6 +105,7 @@ class OZONbyDate:
             'realization': {
                 'platform': 'ozon',
                 'report_name': 'realization',
+                'upload_table': 'realization',
                 'func_name': self.get_realization,
                 'uniq_columns': 'year_month,rowNumber',
                 'partitions': 'year_month',
@@ -112,6 +118,7 @@ class OZONbyDate:
             'postings_fbo': {
                 'platform': 'ozon',
                 'report_name': 'postings_fbo',
+                'upload_table': 'postings_fbo',
                 'func_name': self.get_postings_fbo,
                 'uniq_columns': 'posting_number,created_at',
                 'partitions': 'date',
@@ -124,6 +131,7 @@ class OZONbyDate:
             'finance_details': {
                 'platform': 'ozon',
                 'report_name': 'finance_details',
+                'upload_table': 'finance_details',
                 'func_name': self.get_finance_details,
                 'uniq_columns': 'period_id',
                 'partitions': 'period_id',
@@ -136,6 +144,7 @@ class OZONbyDate:
             'finance_cashflow': {
                 'platform': 'ozon',
                 'report_name': 'finance_cashflow',
+                'upload_table': 'finance_cashflow',
                 'func_name': self.get_finance_cashflow,
                 'uniq_columns': 'period_id',
                 'partitions': 'period_id',
@@ -561,6 +570,7 @@ class OZONbyDate:
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],
                     self.source_dict[report]['report_name'],
+                    self.source_dict[report]['upload_table'],
                     self.source_dict[report]['func_name'],
                     self.source_dict[report]['uniq_columns'],
                     self.source_dict[report]['partitions'],
