@@ -133,7 +133,7 @@ class Common:
         return None
         # список словарей (данные) -> список поле_типданных
 
-    def analyze_column_types(self, data, uniq_columns, partitions):
+    def analyze_column_types(self, data, uniq_columns, partitions, text_columns_set):
         try:
             column_types = {}
             # Проходим по всем строкам в данных
@@ -148,7 +148,7 @@ class Common:
             for column, types in column_types.items():
                 try: types.remove('None')
                 except: pass
-                if len(types) == 1:
+                if len(types) == 1 and column.strip() not in  text_columns_set:
                     final_column_types[column] = next(iter(types))
                 else:
                     final_column_types[column] = 'String'  # Если разные типы, делаем строкой
@@ -166,9 +166,9 @@ class Common:
         return create_table_query
 
     # список словарей (данные) -> датафрейм с нужными типами
-    def check_and_convert_types(self, data, uniq_columns, partitions):
+    def check_and_convert_types(self, data, uniq_columns, partitions, text_columns_set):
         try:
-            columns_list=self.analyze_column_types(data, uniq_columns, partitions)
+            columns_list=self.analyze_column_types(data, uniq_columns, partitions,text_columns_set)
             df=pd.DataFrame(data,dtype=str)
             type_mapping = {
                 'UInt8': 'bool',

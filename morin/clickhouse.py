@@ -72,10 +72,27 @@ class Clickhouse:
             if client:
                 client.close()
 
+    def ch_text_columns_set(self, table_name):
+        client = clickhouse_connect.get_client(host=self.host, port=self.port, username=self.username,
+                                               password=self.password, database=self.database)
+        text_columns_set = set()
+        try:
+            query = f"DESCRIBE TABLE {table_name};"
+            result = client.query(query)
+            columns_info = result.result_rows
+            for col in columns_info:
+                elem = f"{col[0]} {col[1]}"
+                if 'String' in elem:
+                    text_columns_set.add(f"{col[0].strip()}")
+        except:
+            pass
+        return text_columns_set
+
     # список словарей (данные)+уникальность+имятаблицы -> создание/изменение таблицы ch
     def create_alter_ch(self, data, table_name, uniq_columns, partitions, mergetree):
         try:
-            upload_list = self.common.analyze_column_types(data, uniq_columns, partitions)
+            text_columns_set = self.ch_text_columns_set(table_name)
+            upload_list = self.common.analyze_column_types(data, uniq_columns, partitions, text_columns_set)
             upload_set = set(upload_list)
             uploads = ''
             for i in upload_list:
@@ -147,6 +164,7 @@ class Clickhouse:
             try:
                 n_days_ago = self.today - timedelta(days=self.backfill_days)
                 table_name = f'{platform}_{upload_table}_{self.add_name}'
+                text_columns_set = self.ch_text_columns_set(table_name)
                 if refresh_type == 'delete_date':
                     refresh = f"ALTER TABLE {table_name} DROP PARTITION '{date}';"
                 elif refresh_type == 'delete_all':
@@ -159,7 +177,7 @@ class Clickhouse:
                     collect = False
                 collection_data = pd.DataFrame({'date': pd.to_datetime([date], format='%Y-%m-%d'), 'report': [report_name], 'collect': [collect]})
                 self.create_alter_ch(data, table_name, uniq_columns, partitions, merge_type)
-                df = self.common.check_and_convert_types(data, uniq_columns, partitions)
+                df = self.common.check_and_convert_types(data, uniq_columns, partitions, text_columns_set)
                 self.ch_execute(refresh)
                 self.ch_insert(df, table_name)
                 self.ch_insert(collection_data, f'{platform}_collection_{self.add_name}')

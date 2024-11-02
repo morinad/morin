@@ -17,30 +17,35 @@ import math
 class YDbyDate:
     def __init__(self, logging_path:str, subd: str, add_name: str, login: str, token: str , host: str, port: str,
                  username: str, password: str, database: str, start: str, backfill_days: int,
-                 columns : str,  uniq_columns : str, goals :str = None, attributions :str = None):
+                 columns : str,  report: str, goals :str = None, attributions :str = None):
         self.logging_path = os.path.join(logging_path,f'yd_logs.log')
         self.login = login
         self.token = token
         self.subd = subd
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.database = database
         self.add_name = add_name.replace(' ','').replace('-','_')
         self.now = datetime.now()
         self.today = datetime.now().date()
         self.yesterday = self.today - timedelta(days=1)
         self.start = start
         self.columns = columns
-        self.uniq_columns = uniq_columns
+        self.report = report
         self.goals = goals
-        self.err429
+        self.err429 = False
         self.attributions = attributions
         self.backfill_days = backfill_days
         self.common = Common(self.logging_path)
         logging.basicConfig(filename=self.logging_path, level=logging.INFO,
                             format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
-            'stat': {
-                'platform': 'yd_stat',
-                'report_name': 'stat',
-                'upload_table': 'stat',
+            'date': {
+                'platform': 'yd',
+                'report_name': 'date',
+                'upload_table': 'date',
                 'func_name': self.get_stat,
                 'uniq_columns': 'Date',
                 'partitions': 'Date',
@@ -50,10 +55,10 @@ class YDbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 20
             },
-            'data': {
-                'platform': 'yd_data',
-                'report_name': 'data',
-                'upload_table': 'data',
+            'nodate': {
+                'platform': 'yd',
+                'report_name': 'nodate',
+                'upload_table': 'nodate',
                 'func_name': self.get_data,
                 'uniq_columns': 'timeStamp',
                 'partitions': '',
@@ -64,7 +69,7 @@ class YDbyDate:
                 'delay': 20
             },
             'ads': {
-                'platform': 'yd_ads',
+                'platform': 'yd',
                 'report_name': 'ads',
                 'upload_table': 'ads',
                 'func_name': self.collect_campaign_ads,
@@ -139,10 +144,10 @@ class YDbyDate:
             raise
 
     def get_data(self, date):
-        return get_report(self.start, self.yesterday)
+        return self.get_report(self.start, self.yesterday)
 
     def get_stat(self, date):
-        return get_report(self.date, self.date)
+        return self.get_report(date, date)
 
     def get_campaigns(self):
         campaigns_url = 'https://api.direct.yandex.com/json/v5/campaigns'
@@ -213,26 +218,26 @@ class YDbyDate:
 
 
     def collecting_manager(self):
-        if self.columns == 'ads':
+        if self.report == 'ads':
             self.platform = 'yd_ads'
-        elif self.uniq_columns != 'Date':
-            self.platform = 'yd_data'
-        else:
-            self.platform = 'yd_stat'
+        elif self.report == 'nodate':
+            self.platform = 'yd_nodate'
+        elif self.report == 'date':
+            self.platform = 'yd_date'
         self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password, self.database,
                                      self.start, self.add_name, self.err429, self.backfill_days, self.platform)
         self.clickhouse.collecting_report(
-            self.source_dict[report]['platform'],
-            self.source_dict[report]['report_name'],
-            self.source_dict[report]['upload_table'],
-            self.source_dict[report]['func_name'],
-            self.source_dict[report]['uniq_columns'],
-            self.source_dict[report]['partitions'],
-            self.source_dict[report]['merge_type'],
-            self.source_dict[report]['refresh_type'],
-            self.source_dict[report]['history'],
-            self.source_dict[report]['frequency'],
-            self.source_dict[report]['delay']
+            self.source_dict[self.report]['platform'],
+            self.source_dict[self.report]['report_name'],
+            self.source_dict[self.report]['upload_table'],
+            self.source_dict[self.report]['func_name'],
+            self.source_dict[self.report]['uniq_columns'],
+            self.source_dict[self.report]['partitions'],
+            self.source_dict[self.report]['merge_type'],
+            self.source_dict[self.report]['refresh_type'],
+            self.source_dict[self.report]['history'],
+            self.source_dict[self.report]['frequency'],
+            self.source_dict[self.report]['delay']
         )
 
 

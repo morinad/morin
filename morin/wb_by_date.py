@@ -15,7 +15,8 @@ import json
 
 
 class WBbyDate:
-    def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int, reports :str):
+    def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str,
+                 password: str, database: str, start: str, backfill_days: int, reports :str):
         self.logging_path = os.path.join(logging_path,f'wb_logs.log')
         self.token = token
         self.host = host
