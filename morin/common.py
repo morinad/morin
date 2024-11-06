@@ -31,6 +31,13 @@ class Common:
         # Преобразуем дату обратно в строку
         return new_date.strftime('%Y-%m-%d')
 
+    def keep_last_20000_lines(self,file_path):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+        last_20000_lines = lines[-20000:]
+        with open(file_path, 'w', encoding='utf-8') as file:
+            file.writelines(last_20000_lines)
+
     # значение -> тип значения для clickhouse
     def get_data_type(self, column, value, partitions):
         if value == None: return 'None'

@@ -6,10 +6,11 @@ import clickhouse_connect
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
+from .common import Common
 
 class WBreklama:
     def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int):
-        self.logging_path = os.path.join(logging_path,f'wb_ads_logs.log')
+        self.logging_path = logging_path
         self.token = token
         self.host = host
         self.port = port
@@ -22,6 +23,7 @@ class WBreklama:
         self.today = datetime.now().date()
         self.yesterday = self.today - timedelta(days = 1)
         self.start = start
+        self.common = Common(self.logging_path)
         self.backfill_days = backfill_days
         self.err429 = False
         self.client = clickhouse_connect.get_client(host=host, port=port, username=username, password=password, database=database)
@@ -41,12 +43,6 @@ class WBreklama:
         # Округляем до целого числа для совместимости с ClickHouse DateTime
         return int(timestamp)
 
-    def keep_last_10000_lines(self, file_path):
-        with open(file_path, 'r', encoding='utf-8') as file:
-            lines = file.readlines()
-        last_10000_lines = lines[-10000:]
-        with open(file_path, 'w', encoding='utf-8') as file:
-            file.writelines(last_10000_lines)
 
     def get_names(self, campaign_list):
         try:
@@ -355,8 +351,8 @@ class WBreklama:
                             df_success = pd.DataFrame(success_list, columns=['date', 'advertId', 'collect'])
                             if int(wb_json)==200:
                                 self.ch_insert(df_success, f'wb_ads_collection_{self.add_name}')
-                                logging.info("Данные загружены: " + str(sql_date) + "  Кампании: " + str(chunk))
-                                print("День загружены: " + str(sql_date) + "  Кампании: " + str(chunk))
+                                logging.info("День загружен: " + str(sql_date) + "  Кампании: " + str(chunk))
+                                print("День загружен: " + str(sql_date) + "  Кампании: " + str(chunk))
                                 self.client.command(optimize_collection)
                         except Exception as e:
                             logging.info("Ошибка: " +str(e))
@@ -367,4 +363,4 @@ class WBreklama:
         time.sleep(20)
         self.client.command(optimize_campaigns)
         time.sleep(20)
-        self.keep_last_10000_lines(os.path.join(self.logging_path, 'wb_ads_logs.log'))
+        self.common.keep_last_20000_lines(self.logging_path)

@@ -580,5 +580,6 @@ class OZONbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
+            self.common.keep_last_20000_lines(self.logging_path)
 
 

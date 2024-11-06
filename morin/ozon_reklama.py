@@ -10,10 +10,11 @@ from datetime import datetime, timedelta
 from io import StringIO
 import zipfile
 import io
+from .common import Common
 
 class OZONreklama:
     def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int):
-        self.logging_path = os.path.join(logging_path,f'ozon_ads_logs.log')
+        self.logging_path = logging_path
         self.clientid = clientid
         self.token = token
         self.host = host
@@ -22,6 +23,7 @@ class OZONreklama:
         self.password = password
         self.database = database
         self.subd = subd
+        self.common = Common(self.logging_path)
         self.add_name = add_name.replace(' ','').replace('-','_')
         self.now = datetime.now()
         self.today = datetime.now().date()
@@ -37,12 +39,7 @@ class OZONreklama:
         data_tuples = [tuple(x) for x in df.to_numpy()]
         self.client.insert(to_table, data_tuples, column_names=df.columns.tolist())
 
-    def keep_last_10000_lines(self,file_path):
-        with open(file_path, 'r', encoding='utf-8') as file:
-            lines = file.readlines()
-        last_10000_lines = lines[-10000:]
-        with open(file_path, 'w', encoding='utf-8') as file:
-            file.writelines(last_10000_lines)
+
 
     def chunk_list(self, lst, chunk_size):
         for i in range(0, len(lst), chunk_size):
@@ -575,4 +572,4 @@ class OZONreklama:
         time.sleep(5)
         self.client.command(optimize_campaigns)
         time.sleep(10)
-        self.keep_last_10000_lines(os.path.join(self.logging_path,'ozon_ads_logs.log'))
+        self.common.keep_last_20000_lines(self.logging_path)

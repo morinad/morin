@@ -239,6 +239,7 @@ class YDbyDate:
             self.source_dict[self.report]['frequency'],
             self.source_dict[self.report]['delay']
         )
+        self.common.keep_last_20000_lines(self.logging_path)
 
 
 
