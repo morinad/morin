@@ -16,8 +16,10 @@ from dateutil.relativedelta import relativedelta
 
 
 class OZONbyDate:
-    def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int, reports :str):
+    def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str,
+                 username: str, password: str, database: str, start: str, backfill_days: int, reports :str):
         self.logging_path = os.path.join(logging_path,f'ozon_logs.log')
+        self.common = Common(self.logging_path)
         self.clientid = clientid
         self.token = token
         self.host = host
@@ -26,14 +28,13 @@ class OZONbyDate:
         self.password = password
         self.database = database
         self.subd = subd
-        self.add_name = add_name.replace(' ','').replace('-','_')
+        self.add_name = self.common.transliterate_key(add_name)
         self.now = datetime.now()
         self.today = datetime.now().date()
         self.start = start
         self.reports = reports
         self.backfill_days = backfill_days
         self.platform = 'ozon'
-        self.common = Common(self.logging_path)
         self.err429 = False
         logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {

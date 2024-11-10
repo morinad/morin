@@ -20,6 +20,7 @@ class GCbyDate:
     def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str,
                  username: str, password: str, database: str, start: str, group_id: str, reports :str):
         self.logging_path = os.path.join(logging_path,f'gc_logs.log')
+        self.common = Common(self.logging_path)
         self.clientid = clientid
         self.token = token
         self.host = host
@@ -28,7 +29,7 @@ class GCbyDate:
         self.password = password
         self.database = database
         self.subd = subd
-        self.add_name = add_name.replace(' ','').replace('-','_')
+        self.add_name = self.common.transliterate_key(add_name)
         self.now = datetime.now()
         self.today = datetime.now().date()
         self.start = start
@@ -36,7 +37,6 @@ class GCbyDate:
         self.group_id = group_id
         self.backfill_days = 3
         self.platform = 'ozon'
-        self.common = Common(self.logging_path)
         self.err429 = False
         logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
@@ -115,11 +115,11 @@ class GCbyDate:
             querydata = {"key": self.token}
             if report == "groups":
                 report += r'/' +str(self.group_id) + r'/users'
-            url = f"{self.clientid}/pl/api/account/{report}?created_at[from]={self.start}"
+            url = f"{self.clientid}/pl/api/account/{report}?created_at[from]={self.start}".replace(r'//pl',r'/pl')
             response = requests.get(url, params=querydata)
             if response.status_code == 200:
                 export_id = response.json()["info"].get("export_id")
-                export_url = f"{self.clientid}/pl/api/account/exports/{export_id}"
+                export_url = f"{self.clientid}/pl/api/account/exports/{export_id}".replace(r'//pl',r'/pl')
                 for attempt in range(max_attempts):
                     time.sleep(delay)
                     export_response = requests.get(export_url, params=querydata)

@@ -8,8 +8,10 @@ import time
 import logging
 import hashlib
 from io import StringIO
+import chardet
 import json
 import math
+from transliterate import translit
 
 class Common:
     def __init__(self, logging_path:str):
@@ -23,6 +25,11 @@ class Common:
         hash_object = hashlib.md5(text.encode())  # Можно также использовать sha256
         return hash_object.hexdigest()[:10]  # Возвращаем первые 10 символов хеша
 
+    def transliterate_key(self, key):
+        tr = translit(key, 'ru', reversed=True)
+        tr = tr.strip().replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower()
+        return  tr
+
     def shift_date(self, date_str, days=7):
         # Преобразуем строку в объект datetime
         date_obj = datetime.strptime(date_str, '%Y-%m-%d')
@@ -31,80 +38,62 @@ class Common:
         # Преобразуем дату обратно в строку
         return new_date.strftime('%Y-%m-%d')
 
+
     def keep_last_20000_lines(self,file_path):
-        with open(file_path, 'r', encoding='utf-8') as file:
+        with open(file_path, 'rb') as file:
+            raw_data = file.read()
+            result = chardet.detect(raw_data)
+            encoding = result['encoding']
+        with open(file_path, 'r', encoding=encoding) as file:
             lines = file.readlines()
         last_20000_lines = lines[-20000:]
-        with open(file_path, 'w', encoding='utf-8') as file:
+        with open(file_path, 'w', encoding=encoding) as file:
             file.writelines(last_20000_lines)
 
     # значение -> тип значения для clickhouse
     def get_data_type(self, column, value, partitions):
-        if value == None: return 'None'
+        value = str(value)
         part_list = partitions.replace(' ', '').split(',')
-        if isinstance(value, str):
-            if value.lower() == 'false' or value.lower() == 'true':
-                return 'UInt8'
-            date_formats = [
-                '%Y-%m-%dT%H:%M:%S',  # ISO формат DateTime: 2024-09-01T21:20:10
-                '%Y-%m-%d %H:%M:%S',  # DateTime с пробелом: 2024-09-01 21:20:10
-                '%Y-%m-%d',  # Формат Date: 2021-09-08
-                '%d-%m-%Y',  # Формат Date с днем в начале: 08-09-2021
-                '%Y/%m/%d',  # Формат Date через слэш: 2024/09/01
-                '%H:%M:%S',  # Формат Time: 21:20:10
-            ]
-            for date_format in date_formats:
-                try:
-                    parsed_date = datetime.strptime(value, date_format)
-                    # Если дата меньше 1970 года — это не допустимая дата для ClickHouse
-                    if parsed_date.year < 1970:
-                        return 'String'
-                    # Определяем тип на основе формата
-                    if date_format in ['%Y-%m-%d', '%d-%m-%Y', '%Y/%m/%d']:
-                        return 'Date'  # Это формат Date
-                    elif date_format == '%H:%M:%S':
-                        return 'Time'  # Это формат Time
-                    else:
-                        return 'DateTime'  # Форматы с датой и временем
-                except ValueError:
-                    continue  # Если строка не соответствует формату, продолжаем проверку
-            try:
-                parsed_date = parser.isoparse(value)
-                return 'DateTime'  # Это формат DateTime с временной зоной
-            except (ValueError, TypeError):
-                pass
-            try:
-                if value.endswith('Z'):
-                    value = value[:-1] + '+00:00'  # Заменяем 'Z' на '+00:00' для UTC
-                if '+' in value and value[-3] == ':':
-                    value = value[:-3] + value[-2:]  # Убираем двоеточие в зоне (+00:00 -> +0000)
-                parsed_date = datetime.fromisoformat(value)
-                return 'DateTime'  # Формат с датой, временем и временной зоной
-            except ValueError:
-                pass
-            return 'String'  # Если ничего не подошло, возвращаем String
-
-        # Если значение булевое
-        elif isinstance(value, bool):
+        if value == None or value.strip() == '': return 'None'
+        if value.lower() == 'false' or value.lower() == 'true':
             return 'UInt8'
-
-        # Если значение целое число
-        elif isinstance(value, int):
-            if len(str(abs(value))) > 10 or column in part_list:
-                return 'String'
-            return 'Float64'
-
-        # Если значение с плавающей запятой
-        elif isinstance(value, float):
-            if math.isnan(value):
+        date_formats = [
+            "%Y-%m-%dT%H:%M:%S.%f%z",  # 2023-10-22T16:36:15.507+0000
+            "%Y-%m-%d %H:%M:%S.%f%z",  # 2023-10-22 16:36:15.507+0000
+            "%Y-%m-%dT%H:%M:%S%z",  # 2023-10-22T16:36:15+0000
+            "%Y-%m-%d %H:%M:%S%z",  # 2023-10-22 16:36:15+0000
+            "%Y-%m-%dT%H:%M:%S.%f",  # 2023-10-22T16:36:15.507 (без таймзоны)
+            "%Y-%m-%d %H:%M:%S.%f",  # 2023-10-22 16:36:15.507 (без 'T')
+            "%Y-%m-%dT%H:%M:%S",  # 2023-10-22T16:36:15 (без миллисекунд и таймзоны)
+            "%Y-%m-%d %H:%M:%S",  # 2023-10-22 16:36:15 (без 'T', без миллисекунд)
+            "%Y-%m-%d",  # 2023-10-22 (только дата)
+            "%d-%m-%Y",  # 22-10-2023 (европейский формат)  # Формат Date с днем в начале: 08-09-2021
+            '%Y/%m/%d',  # Формат Date через слэш: 2024/09/01
+            '%H:%M:%S',  # Формат Time: 21:20:10
+        ]
+        for date_format in date_formats:
+            try:
+                parsed_date = datetime.strptime(value.replace('Z', ''), date_format)
+                # Если дата меньше 1970 года — это не допустимая дата для ClickHouse
+                if parsed_date.year < 1970:
+                    return 'String'
+                # Определяем тип на основе формата
+                if date_format in ['%Y-%m-%d', '%d-%m-%Y', '%Y/%m/%d']:
+                    return 'Date'  # Это формат Date
+                elif date_format == '%H:%M:%S':
+                    return 'Time'  # Это формат Time
+                else:
+                    return 'DateTime'  # Форматы с датой и временем
+            except ValueError:
+                continue
+        try:
+            float_value = float(value)
+            if len(str(float_value)) < 15 and column not in part_list:
                 return 'Float64'
-            if len(str(int(abs(value)))) > 10 or column in part_list:
-                return 'String'
-            return 'Float64'
+        except:
+            pass
+        return 'String'
 
-        # Для всех остальных типов
-        else:
-            return 'String'
 
     def column_to_datetime(self, date_str):
         if pd.isna(date_str):
@@ -142,6 +131,7 @@ class Common:
 
     def analyze_column_types(self, data, uniq_columns, partitions, text_columns_set):
         try:
+            null_columns = []
             column_types = {}
             # Проходим по всем строкам в данных
             for row in data:
@@ -155,14 +145,21 @@ class Common:
             for column, types in column_types.items():
                 try: types.remove('None')
                 except: pass
+                print(column, types)
                 if len(types) == 1 and column.strip() not in  text_columns_set:
                     final_column_types[column] = next(iter(types))
+                elif len(types) == 0:
+                    final_column_types[column] = 'None'
+                    print('выдан none')
                 else:
                     final_column_types[column] = 'String'  # Если разные типы, делаем строкой
             create_table_query = []
             non_nullable_list = uniq_columns.replace(' ','').split(',')+[partitions.strip()]
             for field, data_type in final_column_types.items():
-                field_type = f'Nullable({data_type})'
+                if data_type != 'None':
+                    field_type = f'Nullable({data_type})'
+                elif data_type == 'None':
+                    field_type = 'None'
                 for non in non_nullable_list:
                     if field == non:
                         field_type = f'{data_type}'
@@ -170,6 +167,7 @@ class Common:
         except Exception as e:
             print(f'Ошибка анализа: {e}')
             logging.info(f'Ошибка анализа: {e}')
+        print(create_table_query)
         return create_table_query
 
     # список словарей (данные) -> датафрейм с нужными типами
@@ -196,7 +194,7 @@ class Common:
                     try:
                         if expected_type in ['Date', 'Nullable(Date)']:
                             df[column_name] = df[column_name].apply(self.column_to_datetime)
-                            df[column_name] = pd.to_datetime(df[column_name], errors='raise')
+                            df[column_name] = pd.to_datetime(df[column_name], errors='raise').dt.date
                             df[column_name] = df[column_name].fillna(pd.to_datetime('1970-01-01').date())
                         if expected_type in ['DateTime', 'Nullable(DateTime)']:
                             df[column_name] = df[column_name].apply(self.column_to_datetime)
@@ -212,6 +210,9 @@ class Common:
                         elif expected_type in ['String','Nullable(String)']:
                             df[column_name] = df[column_name].astype(str)
                             df[column_name] = df[column_name].fillna("")
+                        elif 'None' in expected_type:
+                            df = df.drop(columns=[column_name])
+                            print(column_name)
                     except Exception as e:
                         print(f"Ошибка при преобразовании столбца '{column_name}': {e}")
                         logging.info(f"Ошибка при преобразовании столбца '{column_name}': {e}")

@@ -30,6 +30,27 @@ class Clickhouse:
         self.common = Common(logging_path)
         logging.basicConfig(filename=self.logging_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+
+
+    def test_clickhouse_connection(self):
+        try:
+            client = clickhouse_connect.get_client(
+                host=self.host,
+                port=self.port,
+                user=self.username,
+                password=self.password,
+                database=self.database
+            )
+            client.command('SELECT 1')
+            print("Подключение к ClickHouse успешно!")
+            logging.info("Подключение к ClickHouse успешно!")
+            return True
+        except Exception as e:
+            print(f"Ошибка подключения к ClickHouse: {e}")
+            logging.info(f"Ошибка подключения к ClickHouse: {e}")
+            return False
+
+
     def convert_column_to_text(self, client, table_name, column_name, column_type):
         client.command(f"""ALTER TABLE {table_name} ADD COLUMN test {column_type};""")
         client.command(f"""ALTER TABLE {table_name} UPDATE test = toString({column_name}) WHERE 1;""")
@@ -93,10 +114,12 @@ class Clickhouse:
         try:
             text_columns_set = self.ch_text_columns_set(table_name)
             upload_list = self.common.analyze_column_types(data, uniq_columns, partitions, text_columns_set)
-            upload_set = set(upload_list)
+            upload_set = set()
             uploads = ''
             for i in upload_list:
-                uploads += i + ',\n'
+                if 'None' not in i:
+                    upload_set.add(i)
+                    uploads += i + ',\n'
             if partitions == '':
                 part_part =''
             else:
@@ -193,6 +216,7 @@ class Clickhouse:
 
 
     def collecting_report(self, platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, frequency, delay):
+        self.test_clickhouse_connection()
         logging.info(f"Начинаем сбор {report_name} для клиента: {self.add_name}")
         print(f"Начинаем сбор {report_name} для клиента: {self.add_name}")
         create_table_query_collect = f"""

@@ -95,8 +95,9 @@ class WBreklama:
             if response.status_code == 429:
                 self.err429 = True
             if response.status_code == 200 and result != None:
-                final_df = self.extract_df(result)
+                final_df, final_booster_df = self.extract_df(result)
                 self.ch_insert(final_df, f"wb_ads_data_{self.add_name}")
+                self.ch_insert(final_booster_df, f"wb_ads_booster_{self.add_name}")
             return response.status_code
         except Exception as e:
             logging.info(f"Ошибка получения данных: {e}")
@@ -161,8 +162,25 @@ class WBreklama:
 
     def extract_df(self,in_json):
         out_json = []
+        out_booster_json = []
         for advert in in_json:
             extract_advert = advert['advertId']
+            try:
+                booster_stats = advert['boosterStats']
+                for booster in booster_stats:
+                    try:
+                        booster_date = booster['date'].replace('Z','')
+                        booster_nm = booster['nm']
+                        booster_avg = booster['avg_position']
+                        out_booster_json.append({
+                                            'advertId': extract_advert,
+                                            'date': booster_date,
+                                            'nm': booster_nm,
+                                            'avgPosition': booster_avg     })
+                    except:
+                        pass
+            except:
+                pass
             for day in advert['days']:
                 extract_date = day['date']
                 for app in day['apps']:
@@ -188,10 +206,13 @@ class WBreklama:
                             logging.info(f"Строка nm: {nm}. Ошибка тут: {e}")
                             print(f"Строка nm: {nm}. Ошибка тут: {e}")
         df = pd.DataFrame(out_json)
+        booster_df = pd.DataFrame(out_booster_json)
         df['date'] = pd.to_datetime(df['date']).dt.date
+        booster_df['date'] = pd.to_datetime(booster_df['date']).dt.date
         pd.set_option('display.max_columns', None)
         df['timeStamp'] = self.now
-        return df
+        booster_df['timeStamp'] = self.now
+        return df, booster_df
 
     def wb_reklama_collector(self):
         logging.basicConfig(
@@ -236,6 +257,18 @@ class WBreklama:
         PARTITION BY date
         """
 
+        create_table_query_booster = f"""
+                CREATE TABLE IF NOT EXISTS wb_ads_booster_{self.add_name} (
+                    date Date,
+                    advertId UInt64,
+                    nm UInt64,
+                    avgPosition UInt64,
+                    timeStamp DateTime
+                ) ENGINE = ReplacingMergeTree(timeStamp)
+                ORDER BY (advertId, nm, date)
+                PARTITION BY date
+                """
+
         create_table_query_collect = f"""
         CREATE TABLE IF NOT EXISTS wb_ads_collection_{self.add_name} (
             date Date,
@@ -246,6 +279,7 @@ class WBreklama:
         """
 
         optimize_data = f"OPTIMIZE TABLE wb_ads_data_{self.add_name} FINAL"
+        optimize_booster = f"OPTIMIZE TABLE wb_ads_booster_{self.add_name} FINAL"
         optimize_campaigns = f"OPTIMIZE TABLE wb_ads_campaigns_{self.add_name} FINAL"
         optimize_collection = f"OPTIMIZE TABLE wb_ads_collection_{self.add_name} FINAL"
 
@@ -253,6 +287,7 @@ class WBreklama:
         yesterday = now - timedelta(days=1)
         self.client.command(create_table_query_campaigns)
         self.client.command(create_table_query_data)
+        self.client.command(create_table_query_booster)
         self.client.command(create_table_query_collect)
         headers = {"Authorization": self.token}
         url = "https://advert-api.wildberries.ru/adv/v1/promotion/count"
@@ -361,6 +396,8 @@ class WBreklama:
 
         self.client.command(optimize_data)
         time.sleep(20)
+        self.client.command(optimize_booster)
+        time.sleep(10)
         self.client.command(optimize_campaigns)
         time.sleep(20)
         self.common.keep_last_20000_lines(self.logging_path)

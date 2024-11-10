@@ -18,6 +18,7 @@ class WBbyDate:
     def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str,
                  password: str, database: str, start: str, backfill_days: int, reports :str):
         self.logging_path = os.path.join(logging_path,f'wb_logs.log')
+        self.common = Common(self.logging_path)
         self.token = token
         self.host = host
         self.port = port
@@ -25,14 +26,14 @@ class WBbyDate:
         self.password = password
         self.database = database
         self.subd = subd
-        self.add_name = add_name.replace(' ','').replace('-','_')
+        self.add_name = self.common.transliterate_key(add_name)
         self.now = datetime.now()
         self.today = datetime.now().date()
         self.start = start
         self.reports = reports
         self.backfill_days = backfill_days
         self.platform = 'wb'
-        self.common = Common(self.logging_path)
+
         self.err429 = False
         logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {

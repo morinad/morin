@@ -19,6 +19,7 @@ class YDbyDate:
                  username: str, password: str, database: str, start: str, backfill_days: int,
                  columns : str,  report: str, goals :str = None, attributions :str = None):
         self.logging_path = os.path.join(logging_path,f'yd_logs.log')
+        self.common = Common(self.logging_path)
         self.login = login
         self.token = token
         self.subd = subd
@@ -27,7 +28,7 @@ class YDbyDate:
         self.username = username
         self.password = password
         self.database = database
-        self.add_name = add_name.replace(' ','').replace('-','_')
+        self.add_name = self.common.transliterate_key(add_name)
         self.now = datetime.now()
         self.today = datetime.now().date()
         self.yesterday = self.today - timedelta(days=1)
@@ -38,7 +39,7 @@ class YDbyDate:
         self.err429 = False
         self.attributions = attributions
         self.backfill_days = backfill_days
-        self.common = Common(self.logging_path)
+
         logging.basicConfig(filename=self.logging_path, level=logging.INFO,
                             format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
@@ -126,7 +127,7 @@ class YDbyDate:
             if start_code == '200':
                 return self.tsv_to_dict(response)
             if start_code == '201':
-                for i in range(6):
+                for i in range(60):
                     time.sleep(10)
                     response = requests.post('https://api.direct.yandex.com/json/v5/reports', headers=headers,
                                              json=data)
@@ -144,7 +145,7 @@ class YDbyDate:
             raise
 
     def get_data(self, date):
-        return self.get_report(self.start, self.yesterday)
+        return self.get_report(self.start, self.yesterday.strftime('%Y-%m-%d'))
 
     def get_stat(self, date):
         return self.get_report(date, date)
