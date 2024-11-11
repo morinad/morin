@@ -96,13 +96,14 @@ class WBreklama:
             if response.status_code != 200:
                 message = 'Ответ: '+ str(result)
                 print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             if response.status_code == 429:
                 self.err429 = True
             if response.status_code == 200 and result != None:
                 final_df, final_booster_df = self.extract_df(result)
                 self.ch_insert(final_df, f"wb_ads_data_{self.add_name}")
-                self.ch_insert(final_booster_df, f"wb_ads_booster_{self.add_name}")
+                if not final_booster_df.empty:
+                    self.ch_insert(final_booster_df, f"wb_ads_booster_{self.add_name}")
             return response.status_code
         except Exception as e:
             message = f"Ошибка получения данных: {e}"
@@ -172,58 +173,69 @@ class WBreklama:
             return []
 
     def extract_df(self,in_json):
-        out_json = []
-        out_booster_json = []
-        for advert in in_json:
-            extract_advert = advert['advertId']
-            try:
-                booster_stats = advert['boosterStats']
-                for booster in booster_stats:
-                    try:
-                        booster_date = booster['date'].replace('Z','')
-                        booster_nm = booster['nm']
-                        booster_avg = booster['avg_position']
-                        out_booster_json.append({
-                                            'advertId': extract_advert,
-                                            'date': booster_date,
-                                            'nm': booster_nm,
-                                            'avgPosition': booster_avg     })
-                    except:
-                        pass
-            except:
-                pass
-            for day in advert['days']:
-                extract_date = day['date']
-                for app in day['apps']:
-                    extract_app = app['appType']
-                    for nm in app['nm']:
-                        extract_nm = nm['nmId']
+        try:
+            out_json = []
+            out_booster_json = []
+            for advert in in_json:
+                extract_advert = advert['advertId']
+                try:
+                    booster_stats = advert['boosterStats']
+                    for booster in booster_stats:
                         try:
-                            out_json.append({
-                                'advertId': extract_advert,
-                                'date': extract_date,
-                                'appType': extract_app,
-                                'nmId': extract_nm,
-                                'views': nm['views'],
-                                'clicks': nm['clicks'],
-                                'sum': nm['sum'],
-                                'atbs': nm['atbs'],
-                                'orders': nm['orders'],
-                                'shks': nm['shks'],
-                                'sum_price': nm['sum_price'],
-                                'name': nm['name']
-                                })
-                        except Exception as e:
-                            message = f"Строка nm: {nm}. Ошибка тут: {e}"
-                            print(message)
-                            self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
-        df = pd.DataFrame(out_json)
-        booster_df = pd.DataFrame(out_booster_json)
-        df['date'] = pd.to_datetime(df['date']).dt.date
-        booster_df['date'] = pd.to_datetime(booster_df['date']).dt.date
-        pd.set_option('display.max_columns', None)
-        df['timeStamp'] = self.now
-        booster_df['timeStamp'] = self.now
+                            booster_date = booster['date'].replace('Z','')
+                            booster_nm = booster['nm']
+                            booster_avg = booster['avg_position']
+                            out_booster_json.append({
+                                                'advertId': extract_advert,
+                                                'date': booster_date,
+                                                'nm': booster_nm,
+                                                'avgPosition': booster_avg     })
+                        except:
+                            pass
+                except:
+                    pass
+                for day in advert['days']:
+                    try:
+                        extract_date = day['date']
+                        for app in day['apps']:
+                            extract_app = app['appType']
+                            for nm in app['nm']:
+                                extract_nm = nm['nmId']
+                                try:
+                                    out_json.append({
+                                        'advertId': extract_advert,
+                                        'date': extract_date,
+                                        'appType': extract_app,
+                                        'nmId': extract_nm,
+                                        'views': nm['views'],
+                                        'clicks': nm['clicks'],
+                                        'sum': nm['sum'],
+                                        'atbs': nm['atbs'],
+                                        'orders': nm['orders'],
+                                        'shks': nm['shks'],
+                                        'sum_price': nm['sum_price'],
+                                        'name': nm['name']
+                                        })
+                                except Exception as e:
+                                    message = f"Строка nm: {nm}. Не найдено: {e}"
+                                    print(message)
+                                    self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                    except Exception as e:
+                        message = f"Ошибка распознавания {e}: "+ str(day)[:1000]
+                        print(message)
+                        self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            pd.set_option('display.max_columns', None)
+            df = pd.DataFrame(out_json)
+            booster_df = pd.DataFrame(out_booster_json)
+            df['date'] = pd.to_datetime(df['date']).dt.date
+            if len(out_booster_json)>0:
+                booster_df['date'] = pd.to_datetime(booster_df['date']).dt.date
+                booster_df['timeStamp'] = self.now
+            df['timeStamp'] = self.now
+        except Exception as e:
+            message = f"Ошибка extract: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
         return df, booster_df
 
     def wb_reklama_collector(self):
