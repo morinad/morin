@@ -8,7 +8,6 @@ import pandas as pd
 import os
 from dateutil import parser
 import time
-import logging
 import hashlib
 from io import StringIO
 import json
@@ -16,10 +15,13 @@ from dateutil.relativedelta import relativedelta
 
 
 class OZONbyDate:
-    def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str,
-                 username: str, password: str, database: str, start: str, backfill_days: int, reports :str):
-        self.logging_path = os.path.join(logging_path,f'ozon_logs.log')
-        self.common = Common(self.logging_path)
+    def __init__(self,  bot_token:str, chats:str, message_type: str, subd: str,
+                 host: str, port: str, username: str, password: str, database: str,
+                                  add_name: str, clientid:str, token: str ,  start: str, backfill_days: int, reports :str):
+        self.bot_token = bot_token
+        self.chat_list = chats.replace(' ', '').split(',')
+        self.message_type = message_type
+        self.common = Common(self.bot_token, self.chat_list, self.message_type)
         self.clientid = clientid
         self.token = token
         self.host = host
@@ -36,7 +38,6 @@ class OZONbyDate:
         self.backfill_days = backfill_days
         self.platform = 'ozon'
         self.err429 = False
-        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
             'transactions': {
                 'platform': 'ozon',
@@ -184,8 +185,9 @@ class OZONbyDate:
             else:
                 response.raise_for_status()
         except Exception as e:
-            print(f'Ошибка: {e}. Дата: {date}. Запрос - транзакции.')
-            logging.info(f'Ошибка: {e}. Дата: {date}. Запрос - транзакции.')
+            message = f'Ошибка: {e}. Дата: {date}. Запрос - транзакции.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_transactions(self, date):
@@ -197,7 +199,6 @@ class OZONbyDate:
             page_count = int(self.get_transaction_page_count(date))
             operations = []
             for page in range(1, page_count + 1):
-                print(page)
                 payload = {
                     "filter": {
                         "date": {"from": f"{date}T00:00:00.000Z",
@@ -219,8 +220,9 @@ class OZONbyDate:
                     response.raise_for_status()
                 time.sleep(2)
         except Exception as e:
-            print(f'Ошибка: {e}. Дата: {date}. Запрос - транзакции.')
-            logging.info(f'Ошибка: {e}. Дата: {date}. Запрос - транзакции.')
+            message = f'Ошибка: {e}. Дата: {date}. Запрос - транзакции.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             raise
 
     def get_stock_on_warehouses(self, date):
@@ -258,8 +260,9 @@ class OZONbyDate:
                     response.raise_for_status()
             return all_rows  # Возвращаем итоговый список из 'rows'
         except Exception as e:
-            print(f'Ошибка: {e}. Запрос - stocks.')
-            logging.info(f'Ошибка: {e}. Запрос - stocks.')
+            message = f'Ошибка: {e}. Запрос - stocks.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_all_products(self, date):
@@ -296,8 +299,9 @@ class OZONbyDate:
                     response.raise_for_status()
             return all_items  # Возвращаем итоговый список из 'items'
         except Exception as e:
-            print(f'Ошибка: {e}. Запрос - products.')
-            logging.info(f'Ошибка: {e}. Запрос - products.')
+            message = f'Ошибка: {e}. Запрос - products.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_all_returns_fbo(self, date):
@@ -334,8 +338,9 @@ class OZONbyDate:
                     response.raise_for_status()
             return all_returns  # Возвращаем итоговый список из 'returns'
         except Exception as e:
-            print(f'Ошибка: {e}. Запрос - returns_fbo.')
-            logging.info(f'Ошибка: {e}. Запрос - returns_fbo.')
+            message = f'Ошибка: {e}. Запрос - returns_fbo.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_all_returns_fbs(self, date):
@@ -372,8 +377,9 @@ class OZONbyDate:
                     response.raise_for_status()
             return all_returns  # Возвращаем итоговый список из 'returns'
         except Exception as e:
-            print(f'Ошибка: {e}. Запрос - returns_fbs.')
-            logging.info(f'Ошибка: {e}. Запрос - returns_fbs.')
+            message = f'Ошибка: {e}. Запрос - returns_fbs.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_realization(self, date):
@@ -401,7 +407,9 @@ class OZONbyDate:
                 final_data.append(row)
             return self.common.spread_table(final_data)
         else:
-            print(f"Error: {response.status_code} - {response.text}")
+            message = f"Error: {response.status_code} - {response.text}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return None
 
     def get_postings_fbo(self, date):
@@ -449,8 +457,9 @@ class OZONbyDate:
                 all_postings_with_date.append(dict)
             return self.common.spread_table(all_postings_with_date)  # Возвращаем итоговый список отправлений
         except Exception as e:
-            print(f'Ошибка: {e}. Запрос - postings.')
-            logging.info(f'Ошибка: {e}. Запрос - postings.')
+            message = f'Ошибка: {e}. Запрос - postings.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_date_range(self, date):
@@ -519,8 +528,9 @@ class OZONbyDate:
                     response.raise_for_status()
             return self.common.spread_table(all)
         except Exception as e:
-            print(f'Ошибка: {e}. Запрос - finance_details.')
-            logging.info(f'Ошибка: {e}. Запрос - finance_details.')
+            message = f'Ошибка: {e}. Запрос - finance_details.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_finance_cashflow(self, date):
@@ -552,8 +562,9 @@ class OZONbyDate:
                     response.raise_for_status()
             return self.common.spread_table(all)
         except Exception as e:
-            print(f'Ошибка: {e}. Запрос - finance_cashflow.')
-            logging.info(f'Ошибка: {e}. Запрос - finance_cashflow.')
+            message = f'Ошибка: {e}. Запрос - finance_cashflow.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
 
@@ -561,12 +572,12 @@ class OZONbyDate:
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
             if report == 'reklama':
-                self.reklama = OZONreklama(self.logging_path, self.subd, self.add_name, self.clientid, self.token,
+                self.reklama = OZONreklama(self.bot_token, self.chat_list, self.message_type, self.subd, self.add_name, self.clientid, self.token,
                                            self.host, self.port, self.username, self.password,
                                              self.database, self.start,  self.backfill_days)
                 self.reklama.ozon_reklama_collector()
             else:
-                self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password,
+                self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],
@@ -581,6 +592,6 @@ class OZONbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
-            self.common.keep_last_20000_lines(self.logging_path)
+
 
 

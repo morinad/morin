@@ -5,7 +5,6 @@ import pandas as pd
 import os
 from dateutil import parser
 import time
-import logging
 import hashlib
 from io import StringIO
 import chardet
@@ -14,11 +13,30 @@ import math
 from transliterate import translit
 
 class Common:
-    def __init__(self, logging_path:str):
-        self.logging_path = logging_path
+    def __init__(self, bot_token:str, chat_list:str, message_type: str):
+        self.bot_token = bot_token
+        self.chat_list = chat_list
+        if message_type == 'all':
+            self.value = 1
+        elif message_type == 'key':
+            self.value = 2
+        else:
+            self.value = 3
         self.now = datetime.now()
         self.today = datetime.now().date()
-        logging.basicConfig(filename=self.logging_path, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+    def send_log_message(self, bot_token, chat_ids, message, value):
+        url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
+        try:
+            if value >= self.value:
+                for chat_id in chat_ids:
+                    params = {'chat_id': chat_id, 'text': message            }
+                    response = requests.get(url, params=params)
+                    if response.status_code != 200:
+                        print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
+        except: pass
+
 
     def shorten_text(self, text):
         # Используем хеш-функцию md5 для сокращения строки
@@ -145,29 +163,21 @@ class Common:
             for column, types in column_types.items():
                 try: types.remove('None')
                 except: pass
-                print(column, types)
                 if len(types) == 1 and column.strip() not in  text_columns_set:
                     final_column_types[column] = next(iter(types))
                 elif len(types) == 0:
                     final_column_types[column] = 'None'
-                    print('выдан none')
                 else:
                     final_column_types[column] = 'String'  # Если разные типы, делаем строкой
             create_table_query = []
-            non_nullable_list = uniq_columns.replace(' ','').split(',')+[partitions.strip()]
+            # non_nullable_list = uniq_columns.replace(' ','').split(',')+[partitions.strip()]
             for field, data_type in final_column_types.items():
-                if data_type != 'None':
-                    field_type = f'Nullable({data_type})'
-                elif data_type == 'None':
-                    field_type = 'None'
-                for non in non_nullable_list:
-                    if field == non:
-                        field_type = f'{data_type}'
-                create_table_query.append(f"{field} {field_type}")
+                create_table_query.append(f"{field} {data_type}")
         except Exception as e:
-            print(f'Ошибка анализа: {e}')
-            logging.info(f'Ошибка анализа: {e}')
-        print(create_table_query)
+            message = f'Ошибка анализа: {e}'
+            print(message)
+            self.send_log_message(self.bot_token, self.chat_list, message, 3)
+
         return create_table_query
 
     # список словарей (данные) -> датафрейм с нужными типами
@@ -177,51 +187,48 @@ class Common:
             df=pd.DataFrame(data,dtype=str)
             type_mapping = {
                 'UInt8': 'bool',
-                'Nullable(UInt8)': 'bool',
                 'Date': 'datetime64[ns]',  # pandas формат для дат
                 'DateTime': 'datetime64[ns]',  # pandas формат для дат с временем
                 'String': 'object',  # Строковый формат в pandas
                 'Float64': 'float64',  # float64 тип в pandas
-                'Nullable(Date)': 'datetime64[ns]',  # pandas формат для дат
-                'Nullable(DateTime)': 'datetime64[ns]',  # pandas формат для дат с временем
-                'Nullable(String)': 'object',  # Строковый формат в pandas
-                'Nullable(Float64)': 'float64'  # float64 тип в pandas
             }
             for item in columns_list:
                 column_name, expected_type = item.split()  # Разделяем по пробелу: 'column_name expected_type'
                 if column_name in df.columns:
                     expected_type = expected_type.strip()
                     try:
-                        if expected_type in ['Date', 'Nullable(Date)']:
+                        if expected_type in ['Date']:
                             df[column_name] = df[column_name].apply(self.column_to_datetime)
                             df[column_name] = pd.to_datetime(df[column_name], errors='raise').dt.date
                             df[column_name] = df[column_name].fillna(pd.to_datetime('1970-01-01').date())
-                        if expected_type in ['DateTime', 'Nullable(DateTime)']:
+                        if expected_type in ['DateTime']:
                             df[column_name] = df[column_name].apply(self.column_to_datetime)
                             df[column_name] = pd.to_datetime(df[column_name], errors='raise')
                             df[column_name] = df[column_name].fillna(pd.Timestamp('1970-01-01'))
-                        elif expected_type in ['UInt8','Nullable(UInt8)']:
+                        elif expected_type in ['UInt8']:
                             df[column_name] = df[column_name].replace({'True': True, 'False': False, 'true': True, 'false': False, })
                             df[column_name] = df[column_name].fillna(False)
                             df[column_name] = df[column_name].astype('bool')
-                        elif expected_type in ['Float64','Nullable(Float64)']:
+                        elif expected_type in ['Float64']:
                             df[column_name] = pd.to_numeric(df[column_name], errors='raise').astype('float64')
                             df[column_name] = df[column_name].fillna(0)
-                        elif expected_type in ['String','Nullable(String)']:
+                        elif expected_type in ['String']:
                             df[column_name] = df[column_name].astype(str)
                             df[column_name] = df[column_name].fillna("")
                         elif 'None' in expected_type:
                             df = df.drop(columns=[column_name])
-                            print(column_name)
                     except Exception as e:
-                        print(f"Ошибка при преобразовании столбца '{column_name}': {e}")
-                        logging.info(f"Ошибка при преобразовании столбца '{column_name}': {e}")
+                        message = f"Ошибка при преобразовании столбца '{column_name}': {e}"
+                        print(message)
+                        self.send_log_message(self.bot_token, self.chat_list, message, 3)
             df['timeStamp'] = self.now
-            print(f'Датафрейм успешно преобразован')
-            logging.info(f'Датафрейм успешно преобразован')
+            message = f'Датафрейм успешно преобразован'
+            print(message)
+            self.send_log_message(self.bot_token, self.chat_list, message, 2)
         except Exception as e:
-            print(f'Ошибка преобразования df: {e}')
-            logging.info(f'Ошибка преобразования df: {e}')
+            message= f'Ошибка преобразования df: {e}'
+            print(message)
+            self.send_log_message(self.bot_token, self.chat_list, message, 3)
         return df
 
     def to_collect(self, schedule_str, date_str):

@@ -4,7 +4,6 @@ import time
 import json
 import os
 import clickhouse_connect
-import logging
 import pandas as pd
 from datetime import datetime, timedelta
 from io import StringIO
@@ -13,8 +12,10 @@ import io
 from .common import Common
 
 class OZONreklama:
-    def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int):
-        self.logging_path = logging_path
+    def __init__(self, bot_token:str, chat_list:str, message_type: str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int):
+        self.bot_token = bot_token
+        self.chat_list = chat_list
+        self.message_type = message_type
         self.clientid = clientid
         self.token = token
         self.host = host
@@ -23,7 +24,7 @@ class OZONreklama:
         self.password = password
         self.database = database
         self.subd = subd
-        self.common = Common(self.logging_path)
+        self.common = Common(self.bot_token, self.chat_list, self.message_type)
         self.add_name = add_name.replace(' ','').replace('-','_')
         self.now = datetime.now()
         self.today = datetime.now().date()
@@ -32,7 +33,6 @@ class OZONreklama:
         self.backfill_days = backfill_days
         self.err429 = False
         self.client = clickhouse_connect.get_client(host=host, port=port, username=username, password=password, database=database)
-        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
     def ch_insert(self, df, to_table):
@@ -59,11 +59,13 @@ class OZONreklama:
             payload = {"client_id": client_id, "client_secret": client_secret, "grant_type": "client_credentials"}
             res = requests.post(host + endpoint, headers=headers, json=payload)
             if res.status_code == 200:
-                logging.info("Токен получен успешно")
-                print("Токен получен успешно")
+                message = "Токен получен успешно"
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             else:
-                logging.info(f"Ошибка получения токена: {res.status_code} {res.text}")
-                print(f"Ошибка получения токена: {res.status_code} {res.text}")
+                message = f"Ошибка получения токена: {res.status_code} {res.text}"
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             response_json = res.json()
             if 'access_token' in response_json:
                 access_token = response_json['access_token']
@@ -71,8 +73,9 @@ class OZONreklama:
                 access_token=None
             return access_token
         except Exception as e:
-            logging.info("Ошибка: " + str(e))
-            print("Ошибка: " + str(e))
+            message = "Ошибка: " + str(e)
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
 
 
     def get_names(self, token):
@@ -84,11 +87,13 @@ class OZONreklama:
                 result = response.json()
             except:
                 result = None
-            logging.info("Код:" + str(response.status_code) + '  url:' + 'api/client/campaign')
-            print("Код:" + str(response.status_code) + '  url:' + 'api/client/campaign')
+            message = "Код:" + str(response.status_code) + '  url:' + 'api/client/campaign'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if response.status_code != 200:
-                logging.info('Ответ: ' + str(result))
-                print('Ответ: ' + str(result))
+                message = 'Ответ: ' + str(result)
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 200 and result != None:
                 campaigns = response.json()['list']
                 df = pd.json_normalize(campaigns)
@@ -117,9 +122,10 @@ class OZONreklama:
                 self.ch_insert(df, f"ozon_ads_campaigns_{self.add_name}")
                 return response.status_code
         except Exception as e:
-             logging.info(f"Ошибка получения кампаний: {e}")
-             print(f"Ошибка получения кампаний: {e}")
-             return None
+            message = f"Ошибка получения кампаний: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            return None
 
     def text_to_df(self, response_text, date):
         pd.set_option('display.max_columns', None)
@@ -208,13 +214,14 @@ class OZONreklama:
                 }
                 response = requests.post(url, headers=headers, json=payload)
                 if response.status_code != 200:
-                    logging.info("Код: "+ str(response.status_code) + str(response.json()))
-                    print("Код: " + str(response.status_code) + str(response.json()))
+                    message = "Код: "+ str(response.status_code) + str(response.json())
+                    print(message)
+                    self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
                 else:
                     report_uuid = response.json()['UUID']
-                    logging.info(report_uuid)
-                    print(report_uuid)
-                # report_uuid='a01de964-f6da-41b2-a03c-8d6a2d9fd1b5'
+                    message = report_uuid
+                    print(message)
+                    self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
                     url = f'https://performance.ozon.ru:443/api/client/statistics/{report_uuid}'
                     for k in range(300):
                         time.sleep(5)
@@ -248,12 +255,14 @@ class OZONreklama:
                                 time.sleep(2)
                 return response.status_code
             except Exception as e:
-                logging.info(f"Ошибка получения статистики: {e}")
-                print(f"Ошибка получения статистики: {e}")
+                message= f"Ошибка получения статистики: {e}"
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
                 return None
         else:
-            logging.info(f"Обнаружена ошибка 429, запрос не отправлен.")
-            print(f"Обнаружена ошибка 429, запрос не отправлен.")
+            message = f"Обнаружена ошибка 429, запрос не отправлен."
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return None
 
     def get_campaigns_in_period(self, token, start_date):
@@ -266,12 +275,14 @@ class OZONreklama:
                 result = response.json()
             except:
                 result = None
-            logging.info("Код:" + str(response.status_code) + '  url:' + 'api/client/campaign')
-            print("Код:" + str(response.status_code) + '  url:' + 'api/client/campaign')
+            message = "Код:" + str(response.status_code) + '  url:' + 'api/client/campaign'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
 
             if response.status_code != 200:
-                logging.info('Ответ: ' + str(result))
-                print('Ответ: ' + str(result))
+                message = 'Ответ: ' + str(result)
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 200 and result != None:
                 campaigns = response.json()['list']
                 df = pd.json_normalize(campaigns)
@@ -288,12 +299,12 @@ class OZONreklama:
                                  | ((df['createdAt'] >= start_date) & (df['toDate'] <= end_date))
                                  | ((df['createdAt'] <= start_date) & (df['toDate'] >= end_date))]
                 advert_id_list = df_filtered['id'].tolist()
-                logging.info(str(advert_id_list))
                 return advert_id_list
         except Exception as e:
-             logging.info(f"Ошибка получения кампаний по датам: {e}")
-             print(f"Ошибка получения кампаний по датам: {e}")
-             return None
+            message = f"Ошибка получения кампаний по датам: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            return None
 
     def create_date_list(self, start_date_str, end_date_str):
         try:
@@ -310,18 +321,13 @@ class OZONreklama:
 
             return date_list
         except Exception as e:
-            logging.info(f"Ошибка создания списка дат: {e}")
-            print(f"Ошибка создания списка дат: {e}")
+            message = f"Ошибка создания списка дат: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return []
 
 
     def ozon_reklama_collector(self):
-        logging.basicConfig(
-            filename=os.path.join(self.logging_path,'ozon_ads_logs.log'),
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-
         optimize_data_sp = f"OPTIMIZE TABLE ozon_ads_data_sp_{self.add_name} FINAL"
         optimize_data_sku = f"OPTIMIZE TABLE ozon_ads_data_sku_{self.add_name} FINAL"
         optimize_data_banner = f"OPTIMIZE TABLE ozon_ads_data_banner_{self.add_name} FINAL"
@@ -539,8 +545,9 @@ class OZONreklama:
                             body.append(campaign)
                             if difference.days >= 0:
                                 success_list.append((day, int(campaign), True))
-                        logging.info("Начинаем загрузку: " + str(sql_date) + "  Кампании: " + str(body))
-                        print("Начинаем загрузку: " + str(sql_date) + "  Кампании: " + str(body))
+                        message = "Начинаем загрузку: " + str(sql_date) + "  Кампании: " + str(body)
+                        print(message)
+                        self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
             # получение данных и вставка в ozondata (единой транзакцией вместе с решением коллекшона)
                         try:
                             ozon_json = self.get_data(token, body, sql_date)
@@ -549,14 +556,16 @@ class OZONreklama:
                             df_success = pd.DataFrame(success_list, columns=['date', 'campaignId', 'collect'])
                             if int(ozon_json)==200:
                                 self.ch_insert(df_success, f'ozon_ads_collection_{self.add_name}')
-                                logging.info("Данные загружены: " + str(sql_date) + "  Кампании: " + str(body))
-                                print("Данные загружены: " + str(sql_date) + "  Кампании: " + str(body))
+                                message = "Данные загружены: " + str(sql_date) + "  Кампании: " + str(body)
+                                print(message)
+                                self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
                                 self.client.command(optimize_collection)
                             if self.err429 == False:
                                 time.sleep(2)
                         except Exception as e:
-                            logging.info("Ошибка: " +str(e))
-                            print("Ошибка: " + str(e))
+                            message = "Ошибка: " +str(e)
+                            print(message)
+                            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
                     if self.err429 == False:
                         time.sleep(10)
 
@@ -572,4 +581,4 @@ class OZONreklama:
         time.sleep(5)
         self.client.command(optimize_campaigns)
         time.sleep(10)
-        self.common.keep_last_20000_lines(self.logging_path)
+

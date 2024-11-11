@@ -9,7 +9,6 @@ from transliterate import translit
 import os
 from dateutil import parser
 import time
-import logging
 import hashlib
 from io import StringIO
 import json
@@ -17,10 +16,13 @@ from dateutil.relativedelta import relativedelta
 
 
 class GCbyDate:
-    def __init__(self, logging_path:str, subd: str, add_name: str, clientid:str, token: str , host: str, port: str,
-                 username: str, password: str, database: str, start: str, group_id: str, reports :str):
-        self.logging_path = os.path.join(logging_path,f'gc_logs.log')
-        self.common = Common(self.logging_path)
+    def __init__(self, bot_token:str, chats:str, message_type: str, subd: str,
+                 host: str, port: str, username: str, password: str, database: str,
+                 add_name: str, clientid:str, token: str , start: str, group_id: str, reports :str):
+        self.bot_token = bot_token
+        self.chat_list = chats.replace(' ','').split(',')
+        self.message_type  = message_type
+        self.common = Common(self.bot_token, self.chat_list, self.message_type)
         self.clientid = clientid
         self.token = token
         self.host = host
@@ -38,7 +40,6 @@ class GCbyDate:
         self.backfill_days = 3
         self.platform = 'ozon'
         self.err429 = False
-        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
             'users': {
                 'platform': 'gc',
@@ -133,16 +134,18 @@ class GCbyDate:
                     elif export_response.status_code == 429:
                         self.err429 = True
                     else:
-                        print(f"Попытка {attempt + 1}: Статус {export_response.status_code}")
-                        logging.info(f"Попытка {attempt + 1}: Статус {export_response.status_code}")
+                        message = f"Попытка {attempt + 1}: Статус {export_response.status_code}"
+                        print(message)
+                        self.common.send_log_message(self.bot_token, self.chat_list, message,1)
                 return None
             elif response.status_code == 429:
                 self.err429 = True
             else:
                 response.raise_for_status()
         except Exception as e:
-            print(f'Ошибка: {e}. Дата: {self.today.strftime("%Y-%m-%d")}. Запрос - {report}.')
-            logging.info(f'Ошибка: {e}. Дата: {self.today.strftime("%Y-%m-%d")}. Запрос - {report}.')
+            message = f'Ошибка: {e}. Дата: {self.today.strftime("%Y-%m-%d")}. Запрос - {report}.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_users(self, date):
@@ -160,7 +163,7 @@ class GCbyDate:
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-                self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password,
+                self.clickhouse = Clickhouse( self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],

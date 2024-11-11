@@ -7,7 +7,6 @@ import pandas as pd
 import os
 from dateutil import parser
 import time
-import logging
 import hashlib
 from io import StringIO
 import json
@@ -15,11 +14,14 @@ import math
 
 
 class YDbyDate:
-    def __init__(self, logging_path:str, subd: str, add_name: str, login: str, token: str , host: str, port: str,
-                 username: str, password: str, database: str, start: str, backfill_days: int,
+    def __init__(self, bot_token:str, chats:str, message_type: str, subd:              str,
+                 host: str, port: str, username: str, password: str, database: str,
+                 add_name: str, login: str, token: str ,  start: str, backfill_days: int,
                  columns : str,  report: str, goals :str = None, attributions :str = None):
-        self.logging_path = os.path.join(logging_path,f'yd_logs.log')
-        self.common = Common(self.logging_path)
+        self.bot_token = bot_token
+        self.chat_list = chats.replace(' ', '').split(',')
+        self.message_type = message_type
+        self.common =  Common(self.bot_token, self.chat_list, self.message_type)
         self.login = login
         self.token = token
         self.subd = subd
@@ -40,8 +42,6 @@ class YDbyDate:
         self.attributions = attributions
         self.backfill_days = backfill_days
 
-        logging.basicConfig(filename=self.logging_path, level=logging.INFO,
-                            format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
             'date': {
                 'platform': 'yd',
@@ -122,8 +122,9 @@ class YDbyDate:
         try:
             response = requests.post('https://api.direct.yandex.com/json/v5/reports', headers=headers, json=data)
             start_code = str(response.status_code)
-            print(f'Результат первого запроса: {start_code}')
-            logging.info(f'Результат первого запроса: {start_code}')
+            message = f'Результат первого запроса: {start_code}'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if start_code == '200':
                 return self.tsv_to_dict(response)
             if start_code == '201':
@@ -136,12 +137,14 @@ class YDbyDate:
                         return self.tsv_to_dict(response)
                         break
             else:
-                print(f'Ошибка. Код ответа: {start_code}')
-                logging.info(f'Ошибка. Код ответа: {start_code}')
+                message = f'Ошибка. Код ответа: {start_code}'
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
                 response.raise_for_status()
         except Exception as e:
-            print(f'Ошибка: {e}')
-            logging.info(f'Ошибка: {e}')
+            message = f'Ошибка: {e}'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             raise
 
     def get_data(self, date):
@@ -166,8 +169,9 @@ class YDbyDate:
             camp_data = response.json()['result']['Campaigns']
             return camp_data
         except Exception as e:
-            print(f"Ошибка получения кампаний: {e}")
-            logging.info(f'Ошибка получения кампаний: {e}')
+            message = f"Ошибка получения кампаний: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
 
 
     def get_ads(self, campaign_id, offset):
@@ -190,8 +194,10 @@ class YDbyDate:
             ads_data = response.json()
             return ads_data['result']['Ads']
         except Exception as e:
-            print(f"Ошибка получения объявлений по кампании: {campaign_id}")
-            logging.info(f'Ошибка получения объявлений по кампании: {campaign_id}')
+            message = f"Ошибка получения объявлений по кампании: {campaign_id}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+
 
 
     def collect_campaign_ads(self, date):
@@ -214,8 +220,9 @@ class YDbyDate:
                     pass
             return final_list
         except Exception as e:
-            print(f"Ошибка сбора всех объявлений: {e}")
-            logging.info(f'Ошибка сбора всех объявлений: {e}')
+            message = f"Ошибка сбора всех объявлений: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
 
 
     def collecting_manager(self):
@@ -225,7 +232,7 @@ class YDbyDate:
             self.platform = 'yd_nodate'
         elif self.report == 'date':
             self.platform = 'yd_date'
-        self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password, self.database,
+        self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password, self.database,
                                      self.start, self.add_name, self.err429, self.backfill_days, self.platform)
         self.clickhouse.collecting_report(
             self.source_dict[self.report]['platform'],
@@ -240,7 +247,7 @@ class YDbyDate:
             self.source_dict[self.report]['frequency'],
             self.source_dict[self.report]['delay']
         )
-        self.common.keep_last_20000_lines(self.logging_path)
+
 
 
 

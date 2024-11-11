@@ -8,17 +8,19 @@ import pandas as pd
 import os
 from dateutil import parser
 import time
-import logging
 import hashlib
 from io import StringIO
 import json
 
 
 class WBbyDate:
-    def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str,
-                 password: str, database: str, start: str, backfill_days: int, reports :str):
-        self.logging_path = os.path.join(logging_path,f'wb_logs.log')
-        self.common = Common(self.logging_path)
+    def __init__(self, bot_token:str, chats:str, message_type: str, subd: str,
+                 host: str, port: str, username: str, password: str, database: str,
+                 add_name: str, token: str ,  start: str, backfill_days: int, reports :str):
+        self.bot_token = bot_token
+        self.chat_list = chats.replace(' ', '').split(',')
+        self.message_type = message_type
+        self.common = Common(self.bot_token, self.chat_list, self.message_type)
         self.token = token
         self.host = host
         self.port = port
@@ -35,7 +37,6 @@ class WBbyDate:
         self.platform = 'wb'
 
         self.err429 = False
-        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.source_dict = {
             'realized': {
                 'platform': 'wb',
@@ -150,11 +151,13 @@ class WBbyDate:
                 self.err429 = True
             else:
                 response.raise_for_status()
-            print(f'Код: {code}, запрос - orders')
-            logging.info(f'Код: {code}, запрос - orders')
+            message = f'Код: {code}, запрос - orders'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
         except Exception as e:
-            print(f'Ошибка: {e}, запрос - orders')
-            logging.info(f'Ошибка: {e}, запрос - orders')
+            message = f'Ошибка: {e}, запрос - orders'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_orders_changes(self, date):
@@ -171,11 +174,13 @@ class WBbyDate:
                 self.err429 = True
             else:
                 response.raise_for_status()
-            print(f'Код: {code}, запрос - orders_changes')
-            logging.info(f'Код: {code}, запрос - orders_changes')
+            message = f'Код: {code}, запрос - orders_changes'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
         except Exception as e:
-            print(f'Ошибка: {e}, запрос - orders_changes')
-            logging.info(f'Ошибка: {e}, запрос - orders_changes')
+            message = f'Ошибка: {e}, запрос - orders_changes'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     # дата+токен -> список словарей с заказами (данные)
@@ -197,11 +202,13 @@ class WBbyDate:
                 self.err429 = True
             else:
                 response.raise_for_status()
-            print(f'Код: {code}, запрос - sales')
-            logging.info(f'Код: {code}, запрос - sales')
+            message = f'Код: {code}, запрос - sales'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
         except Exception as e:
-            print(f'Ошибка: {e}, запрос - sales')
-            logging.info(f'Ошибка: {e}, запрос - sales')
+            message = f'Ошибка: {e}, запрос - sales'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_sales_changes(self, date):
@@ -217,11 +224,13 @@ class WBbyDate:
                 self.err429 = True
             else:
                 response.raise_for_status()
-            print(f'Код: {code}, запрос - sales_changes')
-            logging.info(f'Код: {code}, запрос - sales_changes')
+            message = f'Код: {code}, запрос - sales_changes'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
         except Exception as e:
-            print(f'Ошибка: {e}, запрос - sales_changes')
-            logging.info(f'Ошибка: {e}, запрос - sales_changes')
+            message = f'Ошибка: {e}, запрос - sales_changes'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     # дата+токен -> список словарей с заказами (данные)
@@ -238,11 +247,13 @@ class WBbyDate:
                 self.err429 = True
             else:
                 response.raise_for_status()
-            print(f'Код: {code}, запрос - realized')
-            logging.info(f'Код: {code}, запрос - realized')
+            message = f'Код: {code}, запрос - realized'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
         except Exception as e:
-            print(f'Ошибка: {e}, запрос - realized')
-            logging.info(f'Ошибка: {e}, запрос - realized')
+            message = f'Ошибка: {e}, запрос - realized'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_stocks(self, date):
@@ -265,8 +276,9 @@ class WBbyDate:
             else:
                 response.raise_for_status()  # Поднимаем исключение для других кодов
         except Exception as e:
-            print(f'Ошибка: {e}, запрос - stocks')
-            logging.error(f'Ошибка: {e}, запрос - stocks')
+            message = f'Ошибка: {e}, запрос - stocks'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     def get_nmreport(self, date):
@@ -302,8 +314,9 @@ class WBbyDate:
                     response.raise_for_status()
             return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_cards)))
         except Exception as e:
-            logging.error(f'Ошибка: {e}. Дата: {date}. Запрос - nm_report.')
-            print(f'Ошибка: {e}, запрос - nm_report_detail за {date}')
+            message = f'Ошибка: {e}. Дата: {date}. Запрос - nm_report.'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return e
 
     # тип отчёта, дата -> данные в CH
@@ -311,11 +324,11 @@ class WBbyDate:
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
             if report == 'reklama':
-                self.reklama = WBreklama(self.logging_path, self.subd, self.add_name, self.token, self.host, self.port, self.username, self.password,
+                self.reklama = WBreklama(self.bot_token, self.chat_list, self.message_type, self.subd, self.add_name, self.token, self.host, self.port, self.username, self.password,
                                              self.database, self.start,  self.backfill_days)
                 self.reklama.wb_reklama_collector()
             else:
-                self.clickhouse = Clickhouse(self.logging_path, self.host, self.port, self.username, self.password,
+                self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],
@@ -330,7 +343,7 @@ class WBbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
-            self.common.keep_last_20000_lines(self.logging_path)
+
 
 
 

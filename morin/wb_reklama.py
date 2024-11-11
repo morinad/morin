@@ -3,14 +3,15 @@ import time
 import json
 import os
 import clickhouse_connect
-import logging
 import pandas as pd
 from datetime import datetime, timedelta
 from .common import Common
 
 class WBreklama:
-    def __init__(self, logging_path:str, subd: str, add_name: str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int):
-        self.logging_path = logging_path
+    def __init__(self, bot_token:str, chat_list:str, message_type: str, subd: str, add_name: str, token: str , host: str, port: str, username: str, password: str, database: str, start: str, backfill_days: int):
+        self.bot_token = bot_token
+        self.chat_list = chat_list
+        self.message_type = message_type
         self.token = token
         self.host = host
         self.port = port
@@ -23,11 +24,10 @@ class WBreklama:
         self.today = datetime.now().date()
         self.yesterday = self.today - timedelta(days = 1)
         self.start = start
-        self.common = Common(self.logging_path)
+        self.common = Common(self.bot_token, self.chat_list, self.message_type)
         self.backfill_days = backfill_days
         self.err429 = False
         self.client = clickhouse_connect.get_client(host=host, port=port, username=username, password=password, database=database)
-        logging.basicConfig(filename=self.logging_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     def ch_insert(self, df, to_table):
         data_tuples = [tuple(x) for x in df.to_numpy()]
@@ -53,11 +53,13 @@ class WBreklama:
                 result = response.json()
             except:
                 result = None
-            logging.info("Код:" + str(response.status_code) + '  url:' + 'adv/v1/promotion/adverts (названия кампаний)')
-            print("Код:" + str(response.status_code) + '  url:' + 'adv/v1/promotion/adverts (названия кампаний)')
+            message = "Код:" + str(response.status_code) + '  url:' + 'adv/v1/promotion/adverts (названия кампаний)'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if response.status_code != 200:
-                logging.info('Ответ: ' + str(result))
-                print('Ответ: ' + str(result))
+                message = 'Ответ: ' + str(result)
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 429:
                 self.err429 = True
             if response.status_code == 200 and result != None:
@@ -75,8 +77,9 @@ class WBreklama:
                 self.ch_insert(df, f"wb_ads_campaigns_{self.add_name}")
                 return response.status_code
         except Exception as e:
-            logging.info(f"Ошибка получения кампаний: {e}")
-            print(f"Ошибка получения кампаний: {e}")
+            message = f"Ошибка получения кампаний: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return None
 
     def get_data(self, body, token):
@@ -85,13 +88,15 @@ class WBreklama:
             url = "https://advert-api.wildberries.ru/adv/v2/fullstats"
             json_data = json.dumps(body)
             response = requests.post(url, headers=headers, data=json_data)
-            logging.info("Код:" + str(response.status_code) +'  url:' + 'adv/v2/fullstats')
-            print("Код:" + str(response.status_code) + '  url:' + 'adv/v2/fullstats')
+            message = "Код:" + str(response.status_code) +'  url:' + 'adv/v2/fullstats'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             try: result = response.json()
             except: result = None
             if response.status_code != 200:
-                logging.info('Ответ: '+ str(result))
-                print('Ответ: ' + str(result))
+                message = 'Ответ: '+ str(result)
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 429:
                 self.err429 = True
             if response.status_code == 200 and result != None:
@@ -100,8 +105,9 @@ class WBreklama:
                 self.ch_insert(final_booster_df, f"wb_ads_booster_{self.add_name}")
             return response.status_code
         except Exception as e:
-            logging.info(f"Ошибка получения данных: {e}")
-            print(f"Ошибка получения данных: {e}")
+            message = f"Ошибка получения данных: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return None
 
     def get_campaigns_in_period(self, campaign_list, token, start_date ):
@@ -114,10 +120,13 @@ class WBreklama:
                 result = response.json()
             except:
                 result = None
-            logging.info("Код:" + str(response.status_code) + '  url:' + 'adv/v1/promotion/adverts (получение дат кампаний)')
+            message = "Код:" + str(response.status_code) + '  url:' + 'adv/v1/promotion/adverts (получение дат кампаний)'
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if response.status_code != 200:
-                logging.info('Ответ: '+ str(result))
-                print('Ответ: ' + str(result))
+                message = 'Ответ: '+ str(result)
+                print(message)
+                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 200:
                 df = pd.json_normalize(result)
                 df['advertId'] = df['advertId'].astype('int64')
@@ -136,8 +145,9 @@ class WBreklama:
             else:
                 return None
         except Exception as e:
-            logging.info(f"Ошибка получения кампаний для периода: {e}")
-            print(f"Ошибка получения кампаний для периода: {e}")
+            message = f"Ошибка получения кампаний для периода: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return None
 
 
@@ -156,8 +166,9 @@ class WBreklama:
 
             return date_list
         except Exception as e:
-            logging.info(f"Ошибка создания списка дат: {e}")
-            print(f"Ошибка создания списка дат: {e}")
+            message =f"Ошибка создания списка дат: {e}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
             return []
 
     def extract_df(self,in_json):
@@ -203,8 +214,9 @@ class WBreklama:
                                 'name': nm['name']
                                 })
                         except Exception as e:
-                            logging.info(f"Строка nm: {nm}. Ошибка тут: {e}")
-                            print(f"Строка nm: {nm}. Ошибка тут: {e}")
+                            message = f"Строка nm: {nm}. Ошибка тут: {e}"
+                            print(message)
+                            self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
         df = pd.DataFrame(out_json)
         booster_df = pd.DataFrame(out_booster_json)
         df['date'] = pd.to_datetime(df['date']).dt.date
@@ -215,12 +227,6 @@ class WBreklama:
         return df, booster_df
 
     def wb_reklama_collector(self):
-        logging.basicConfig(
-            filename=os.path.join(self.logging_path,'wb_ads_logs.log'),
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-
         create_table_query_campaigns = f"""
         CREATE TABLE IF NOT EXISTS wb_ads_campaigns_{self.add_name} (
             createTime DateTime,
@@ -293,8 +299,9 @@ class WBreklama:
         url = "https://advert-api.wildberries.ru/adv/v1/promotion/count"
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
-            logging.info(f"Ошибка получения списка: {response.status_code}")
-            print(f"Ошибка получения списка: {response.status_code}")
+            message = f"Ошибка получения списка: {response.status_code}"
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
         else:
             result = response.json()
             advert_ids = []
@@ -309,8 +316,9 @@ class WBreklama:
             for chunk in self.chunk_list(advert_ids, 50):
                 active_campaigns=active_campaigns + self.get_campaigns_in_period(chunk, self.token, self.start)
                 time.sleep(10)
-            logging.info("Активные кампании: "+ str(active_campaigns))
-            print("Активные кампании: " + str(active_campaigns))
+            message = "Активные кампании: "+ str(active_campaigns)
+            print(message)
+            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
 
         # забираем активные из wbcampaigns
             active_campaigns_query = f"""
@@ -377,8 +385,9 @@ class WBreklama:
                             body.append({"id": int(campaign), "dates": [sql_date]})
                             if difference.days >= 0:
                                 success_list.append((day, campaign, True))
-                        logging.info("Получаем дату: " + str(sql_date) + '  Кампании: ' +str(chunk))
-                        print("Получаем дату: " + str(sql_date) + '  Кампании: ' +str(chunk))
+                        message = "Получаем дату: " + str(sql_date) + '  Кампании: ' +str(chunk)
+                        print(message)
+                        self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
 
             # получение данных и вставка в wbdata (единой транзакцией вместе с решением коллекшона)
                         try:
@@ -386,12 +395,14 @@ class WBreklama:
                             df_success = pd.DataFrame(success_list, columns=['date', 'advertId', 'collect'])
                             if int(wb_json)==200:
                                 self.ch_insert(df_success, f'wb_ads_collection_{self.add_name}')
-                                logging.info("День загружен: " + str(sql_date) + "  Кампании: " + str(chunk))
-                                print("День загружен: " + str(sql_date) + "  Кампании: " + str(chunk))
+                                message = "День загружен: " + str(sql_date) + "  Кампании: " + str(chunk)
+                                print(message)
+                                self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
                                 self.client.command(optimize_collection)
                         except Exception as e:
-                            logging.info("Ошибка: " +str(e))
-                            print("Ошибка: " + str(e))
+                            message = "Ошибка: " +str(e)
+                            print(message)
+                            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
                         time.sleep(61)
 
         self.client.command(optimize_data)
@@ -400,4 +411,4 @@ class WBreklama:
         time.sleep(10)
         self.client.command(optimize_campaigns)
         time.sleep(20)
-        self.common.keep_last_20000_lines(self.logging_path)
+
