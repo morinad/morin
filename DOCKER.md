@@ -18,15 +18,17 @@ sudo systemctl status docker
 
 ## Подготовка volume и сети:
 docker volume create clickhouse_volume
+
 docker network create --driver bridge chnet
 
 
 ## Запуск контейнера Clickhouse:
 Если работаете на Windows, укажите папку с файлами настроек:
+
 set BASE_DIR=C:/Github/exp_scripts/Применение Docker
 
 
-Для Windows (папка %BASE_DIR%):
+**Для Windows (папка %BASE_DIR%):**
 docker run -d --name my_clickhouse --network chnet -p 8123:8123 -p 9000:9000 ^
 -v clickhouse_volume:/var/lib/clickhouse ^
 -v "%BASE_DIR%/config.xml:/etc/clickhouse-server/config.xml" ^
@@ -36,7 +38,7 @@ morinad/my_clickhouse ^
 clickhouse-server --config-file=/etc/clickhouse-server/config.xml
 
 
-### Для Linux (используем папку /home):
+**Для Linux (используем папку /home):**
 docker run -d --name my_clickhouse --network chnet -p 8123:8123 -p 9000:9000 \
 -v clickhouse_volume:/var/lib/clickhouse \
 -v "/home/config.xml:/etc/clickhouse-server/config.xml" \
@@ -50,13 +52,13 @@ clickhouse-server --config-file=/etc/clickhouse-server/config.xml
 set BASE_DIR=C:/YandexDisk/Задумки/Коннекторы в Docker/Тест
 
 
-### Для Windows (папка %BASE_DIR%):
+**Для Windows (папка %BASE_DIR%):**
 docker run -d --name upload_data --network chnet ^
 -v "%BASE_DIR%/settings.xlsx:/app/settings.xlsx" ^
 morinad/upload_data
 
 
-### Для Linux (используем папку /home):
+**Для Linux (используем папку /home):**
 docker run -d --name upload_data --network chnet \
 -v "/home/settings.xlsx:/app/settings.xlsx" \
 morinad/upload_data
