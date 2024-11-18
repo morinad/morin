@@ -16,7 +16,7 @@ sudo apt update
 
 sudo apt install -y docker-ce
 
-sudo systemctl status docker (это проверка статуса, )
+sudo systemctl status docker (это проверка статуса, после проверки нажмите Ctrl+C чтобы вернуться в командную строку )
 
 
 ## Подготовка volume и сети:
