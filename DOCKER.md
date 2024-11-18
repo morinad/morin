@@ -26,7 +26,7 @@ docker network create --driver bridge chnet
 
 
 ## Запуск контейнера Clickhouse:
-Если работаете на Windows, укажите папку с файлами настроек:
+Если работаете на Windows, укажите ВАШУ ПАПКУ с файлами настроек:
 
 set BASE_DIR=C:/Github/exp_scripts/Применение Docker
 
