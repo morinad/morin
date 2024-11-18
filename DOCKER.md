@@ -1,6 +1,9 @@
 # Запуск базы данных и загрузки данных в Docker
+## Установка Docker на компьютер:
+1) Установите Docker Desktop для вашей операционной системы
+2) Указывайте BASE_DIR (инструкции ниже) для указания папки с настройками
 
-## Установка Docker:
+## Установка Docker на сервер:
 sudo apt update
 
 sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
@@ -13,7 +16,7 @@ sudo apt update
 
 sudo apt install -y docker-ce
 
-sudo systemctl status docker
+sudo systemctl status docker (это проверка статуса, )
 
 
 ## Подготовка volume и сети:
