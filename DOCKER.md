@@ -40,7 +40,7 @@ docker run -d --name my_clickhouse --network chnet -p 8123:8123 -p 9000:9000 -v 
 -v "/home/config.xml:/etc/clickhouse-server/config.xml" -v "/home/users.xml:/etc/clickhouse-server/users.xml" --user clickhouse morinad/my_clickhouse clickhouse-server --config-file=/etc/clickhouse-server/config.xml
 
 
-## Запуск загрузки в Clickhouse:
+## Запуск загрузки данных из API:
 **Для Windows (папка %BASE_DIR%):**
 
 docker run -d --name upload_data --network chnet -v "%BASE_DIR%/settings.xlsx:/app/settings.xlsx" morinad/upload_data
