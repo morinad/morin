@@ -41,9 +41,6 @@ docker run -d --name my_clickhouse --network chnet -p 8123:8123 -p 9000:9000 -v 
 
 
 ## Запуск загрузки в Clickhouse:
-set BASE_DIR=C:/YandexDisk/Задумки/Коннекторы в Docker/Тест
-
-
 **Для Windows (папка %BASE_DIR%):**
 
 docker run -d --name upload_data --network chnet -v "%BASE_DIR%/settings.xlsx:/app/settings.xlsx" morinad/upload_data
