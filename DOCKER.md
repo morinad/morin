@@ -2,11 +2,17 @@
 
 ## Установка Docker:
 sudo apt update
+
 sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
 sudo apt update
+
 sudo apt install -y docker-ce
+
 sudo systemctl status docker
 
 
@@ -20,7 +26,7 @@ docker network create --driver bridge chnet
 set BASE_DIR=C:/Github/exp_scripts/Применение Docker
 
 
-### Для Windows (папка %BASE_DIR%):
+Для Windows (папка %BASE_DIR%):
 docker run -d --name my_clickhouse --network chnet -p 8123:8123 -p 9000:9000 ^
 -v clickhouse_volume:/var/lib/clickhouse ^
 -v "%BASE_DIR%/config.xml:/etc/clickhouse-server/config.xml" ^
