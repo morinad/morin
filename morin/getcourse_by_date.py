@@ -38,7 +38,7 @@ class GCbyDate:
         self.reports = reports
         self.group_id = group_id
         self.backfill_days = 3
-        self.platform = 'ozon'
+        self.platform = 'gc'
         self.err429 = False
         self.source_dict = {
             'users': {
