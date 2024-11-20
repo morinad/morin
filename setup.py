@@ -5,7 +5,7 @@ with open('README.md', encoding='utf-8') as f:
 
 setup(
     name='morin',
-    version='0.2.27',
+    version='0.2.28',
     packages=find_packages(),
     description='Помощь в подключениях и загрузке в БД',
     long_description=long_description,
