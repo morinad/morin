@@ -43,13 +43,11 @@ class Clickhouse:
             )
             client.command('SELECT 1')
             message = "Подключение к ClickHouse успешно!"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message,1)
+            self.common.log_func(self.bot_token, self.chat_list, message,1)
             return True
         except Exception as e:
             message = f"Ошибка подключения к ClickHouse: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message,3)
+            self.common.log_func(self.bot_token, self.chat_list, message,3)
             return False
 
 
@@ -70,14 +68,12 @@ class Clickhouse:
                                                    password=self.password, database=self.database)
             client.insert(to_table, data_tuples, column_names=df.columns.tolist())
             message =f'Данные вставлены в CH, таблица {to_table}'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             optimize_table = f"OPTIMIZE TABLE {to_table} FINAL"
             client.command(optimize_table)
         except Exception as e:
             message = f'Ошибка вставки в CH: {e}'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
         finally:
             if client:
@@ -89,12 +85,10 @@ class Clickhouse:
             client.command(expression)
             disp_exp = expression.strip()[:25]+'...'
             message = f'Выражение {disp_exp} выполнено'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
         except Exception as e:
             message = f'Ошибка выражения {disp_exp}: {e}'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
         finally:
             if client:
                 client.close()
@@ -118,9 +112,11 @@ class Clickhouse:
     # список словарей (данные)+уникальность+имятаблицы -> создание/изменение таблицы ch
     def create_alter_ch(self, data, table_name, uniq_columns, partitions, mergetree):
         try:
+            print(table_name)
             text_columns_set = self.ch_text_columns_set(table_name)
             upload_list = self.common.analyze_column_types(data, uniq_columns, partitions, text_columns_set)
             upload_set = set()
+            print('upload_list',upload_list)
             uploads = ''
             for i in upload_list:
                 if 'None' not in i:
@@ -131,12 +127,14 @@ class Clickhouse:
             else:
                 part_part = f'PARTITION BY {partitions}'
             create_table_query_campaigns = f'CREATE TABLE IF NOT EXISTS {table_name} (' + uploads + f'timeStamp DateTime ) ENGINE = {mergetree} ORDER BY ({uniq_columns}) {part_part}'
+            print(create_table_query_campaigns)
             client = clickhouse_connect.get_client(host=self.host, port=self.port, username=self.username, password=self.password, database=self.database)
             client.query(create_table_query_campaigns)
             query = f"DESCRIBE TABLE {table_name};"
             result = client.query(query)
             columns_info = result.result_rows
             current_set = set([f"{col[0]} {col[1]}" for col in columns_info])
+            print(current_set)
             current_names_set = set([f"{col[0].strip()}" for col in columns_info])
             diff = list(upload_set - current_set)
             if len(diff) > 0:
@@ -150,21 +148,17 @@ class Clickhouse:
                     else:
                         alter_exp =start_alter_exp + 'ADD COLUMN IF NOT EXISTS ' + d + ' AFTER timeStamp;'
                         message = f'Попытка изменения {table_name}, Формула: {alter_exp}'
-                        print(message)
-                        self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                        self.common.log_func(self.bot_token, self.chat_list, message, 1)
                         client.query(alter_exp)
                     message = f'Успешное изменение {table_name}, Формула: {alter_exp}'
-                    print(message)
-                    self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+                    self.common.log_func(self.bot_token, self.chat_list, message, 2)
                     time.sleep(2)
             else:
                 message = f'Данные готовы для вставки в {table_name}'
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
         except Exception as e:
             message = f'Ошибка подготовки данных: {e}'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
 
 
 
@@ -186,12 +180,10 @@ class Clickhouse:
             missing_dates = sorted(all_dates - existing_dates)
             missing_dates_str = [date.strftime('%Y-%m-%d') for date in missing_dates]
             message = f'Успешное получение дат. Таблица: {table_name}, Старт: {start_date}'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
         except Exception as e:
             message = f'Ошибка получения дат: {e}'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
         return missing_dates_str
 
 
@@ -218,13 +210,11 @@ class Clickhouse:
                 self.ch_insert(df, table_name)
                 self.ch_insert(collection_data, f'{platform}_collection_{self.add_name}')
                 message = f'Данные добавлены. Репорт: {report_name}. Дата: {date}'
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+                self.common.log_func(self.bot_token, self.chat_list, message, 2)
                 time.sleep(delay)
             except Exception as e:
                 message = f'Ошибка вставки: {e}. Репорт: {report_name}. Дата: {date}'
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
                 time.sleep(delay)
         else:
             raise ValueError("Обнаружена ошибка 429")
@@ -233,8 +223,7 @@ class Clickhouse:
     def collecting_report(self, platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, frequency, delay):
         self.test_clickhouse_connection()
         message = f"Начинаем сбор {report_name} для клиента: {self.add_name}"
-        print(message)
-        self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+        self.common.log_func(self.bot_token, self.chat_list, message, 2)
         create_table_query_collect = f"""
             CREATE TABLE IF NOT EXISTS {platform}_collection_{self.add_name} (
             date Date, report String, collect Bool ) ENGINE = ReplacingMergeTree(collect) ORDER BY (report, date)"""
@@ -247,13 +236,11 @@ class Clickhouse:
             for date in date_list:
                 if self.err429 == False and self.common.to_collect(frequency, date):
                     message = f'Начинаем сбор. Репорт: {report_name}, Дата: {date}'
-                    print(message)
-                    self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+                    self.common.log_func(self.bot_token, self.chat_list, message, 2)
                     self.upload_data(platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
         else:
             date = self.today.strftime('%Y-%m-%d')
             if self.err429 == False and self.common.to_collect(frequency, date):
                 message = f'Начинаем сбор. Репорт: {report_name}, Дата: {date}'
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+                self.common.log_func(self.bot_token, self.chat_list, message, 2)
                 self.upload_data(platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)

@@ -16,6 +16,7 @@ class Common:
     def __init__(self, bot_token:str, chat_list:str, message_type: str):
         self.bot_token = bot_token
         self.chat_list = chat_list
+
         if message_type == 'all':
             self.value = 1
         elif message_type == 'key':
@@ -25,18 +26,50 @@ class Common:
         self.now = datetime.now()
         self.today = datetime.now().date()
 
+    def log_func(self, bot_token, chat_ids,message, value):
+        print(message)
+        log_file_path = "/app/log.txt"
+        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+        if value >= self.value:
+            with open(log_file_path, "a") as log_file:
+                log_file.write(message + "\n\n")
+        self.send_logs_clear(bot_token, chat_ids, message)
 
-    def send_log_message(self, bot_token, chat_ids, message, value):
+    def send_logs_clear(self,bot_token, chat_ids, message):
+        log_file_path = "/app/log.txt"
+        if not os.path.exists(log_file_path):
+            print("Файл лога не существует.")
+        with open(log_file_path, "r") as log_file:
+            content = log_file.read()
+        if len(content) > 1000:
+            self.message_text = content
+            self.send_logs(bot_token, chat_ids)
+            with open(log_file_path, "w") as log_file:
+                log_file.write("")  # Очищаем файл
+            print("Файл очищен, длина содержимого превышала 1000 символов.")
+        return content
+
+    def send_logs(self, bot_token, chat_ids):
         url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
-        try:
-            if value >= self.value:
-                for chat_id in chat_ids:
-                    params = {'chat_id': chat_id, 'text': message            }
-                    response = requests.get(url, params=params)
-                    if response.status_code != 200:
-                        print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
-        except: pass
+        for chat_id in chat_ids:
+            params = {'chat_id': chat_id, 'text': self.message_text}
+            response = requests.get(url, params=params)
+            if response.status_code != 200:
+                print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
+        self.message_text = ''
 
+    def is_empty(self, result):
+        if not result:
+            return True
+        if isinstance(result, list) and all(isinstance(item, dict) and not item for item in result):
+            return True
+        return False
+
+    def is_error(self, result):
+        if isinstance(result, str):
+            if 'Ошибка:' in result:
+                return True
+        return False
 
     def shorten_text(self, text):
         # Используем хеш-функцию md5 для сокращения строки
@@ -69,11 +102,11 @@ class Common:
             file.writelines(last_20000_lines)
 
     # значение -> тип значения для clickhouse
-    def get_data_type(self, column, value, partitions):
-        value = str(value)
+    def get_data_type(self, column, getvalue, partitions):
+        getvalue = str(getvalue)
         part_list = partitions.replace(' ', '').split(',')
-        if value == None or value.strip() == '': return 'None'
-        if value.lower() == 'false' or value.lower() == 'true':
+        if getvalue == None or getvalue.strip() == '': return 'None'
+        if getvalue.lower() == 'false' or getvalue.lower() == 'true':
             return 'UInt8'
         date_formats = [
             "%Y-%m-%dT%H:%M:%S.%f%z",  # 2023-10-22T16:36:15.507+0000
@@ -91,7 +124,7 @@ class Common:
         ]
         for date_format in date_formats:
             try:
-                parsed_date = datetime.strptime(value.replace('Z', ''), date_format)
+                parsed_date = datetime.strptime(getvalue.replace('Z', ''), date_format)
                 # Если дата меньше 1970 года — это не допустимая дата для ClickHouse
                 if parsed_date.year < 1970:
                     return 'String'
@@ -105,7 +138,7 @@ class Common:
             except ValueError:
                 continue
         try:
-            float_value = float(value)
+            float_value = float(getvalue)
             if len(str(float_value)) < 15 and column not in part_list:
                 return 'Float64'
         except:
@@ -153,8 +186,8 @@ class Common:
             column_types = {}
             # Проходим по всем строкам в данных
             for row in data:
-                for column, value in row.items():
-                    value_type = self.get_data_type(column, value, partitions)  # Определяем тип данных
+                for column, anvalue in row.items():
+                    value_type = self.get_data_type(column, anvalue, partitions)  # Определяем тип данных
                     if column not in column_types:
                         column_types[column] = set()  # Создаем множество для уникальных типов
                     column_types[column].add(value_type)
@@ -175,8 +208,8 @@ class Common:
                 create_table_query.append(f"{field} {data_type}")
         except Exception as e:
             message = f'Ошибка анализа: {e}'
-            print(message)
-            self.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.log_func(self.bot_token, self.chat_list,message, 3)
+
 
         return create_table_query
 
@@ -219,16 +252,13 @@ class Common:
                             df = df.drop(columns=[column_name])
                     except Exception as e:
                         message = f"Ошибка при преобразовании столбца '{column_name}': {e}"
-                        print(message)
-                        self.send_log_message(self.bot_token, self.chat_list, message, 3)
+                        self.log_func(self.bot_token, self.chat_list, message, 3)
             df['timeStamp'] = self.now
             message = f'Датафрейм успешно преобразован'
-            print(message)
-            self.send_log_message(self.bot_token, self.chat_list, message, 2)
+            self.log_func(self.bot_token, self.chat_list, message, 2)
         except Exception as e:
             message= f'Ошибка преобразования df: {e}'
-            print(message)
-            self.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.log_func(self.bot_token, self.chat_list, message, 3)
         return df
 
     def to_collect(self, schedule_str, date_str):

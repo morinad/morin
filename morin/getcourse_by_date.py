@@ -96,18 +96,23 @@ class GCbyDate:
         }
 
     def translate_keys(self, list_of_dicts):
-        def transliterate_key(key):
-            tr = translit(key, 'ru', reversed=True)
-            return    tr.replace(' ','_').replace('-','_').replace(",",'').replace("'",'').replace(".",'').replace("(",'').replace(")",'').lower()
-        for dictionary in list_of_dicts:
-            new_dict = {}
-            for key, value in dictionary.items():
-                # Транслитерируем ключ
-                english_key = transliterate_key(key)
-                new_dict[english_key] = value
-            dictionary.clear()  # Очищаем оригинальный словарь
-            dictionary.update(new_dict)  # Обновляем его новыми значениями с английскими ключами
-        return list_of_dicts
+        try:
+            def transliterate_key(key):
+                tr = translit(key, 'ru', reversed=True)
+                return    tr.replace(' ','_').replace('-','_').replace(",",'').replace("'",'').replace(".",'').replace("(",'').replace(")",'').lower()
+            for dictionary in list_of_dicts:
+                new_dict = {}
+                for key, value in dictionary.items():
+                    # Транслитерируем ключ
+                    english_key = transliterate_key(key)
+                    new_dict[english_key] = value
+                dictionary.clear()  # Очищаем оригинальный словарь
+                dictionary.update(new_dict)  # Обновляем его новыми значениями с английскими ключами
+            return list_of_dicts
+        except Exception as e:
+            message = f'Платформа: GC. Имя: {self.add_name}. Функция: translate_keys. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            raise
 
     def get_data(self, report):
         try:
@@ -118,47 +123,84 @@ class GCbyDate:
                 report += r'/' +str(self.group_id) + r'/users'
             url = f"{self.clientid}/pl/api/account/{report}?created_at[from]={self.start}".replace(r'//pl',r'/pl')
             response = requests.get(url, params=querydata)
-            if response.status_code == 200:
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
                 export_id = response.json()["info"].get("export_id")
                 export_url = f"{self.clientid}/pl/api/account/exports/{export_id}".replace(r'//pl',r'/pl')
                 for attempt in range(max_attempts):
                     time.sleep(delay)
                     export_response = requests.get(export_url, params=querydata)
-                    if export_response.status_code == 200:
+                    export_code = export_response.status_code
+                    if export_code == 429:
+                        self.err429 = True
+                    if export_code == 200:
                         json_data = export_response.json()
                         if json_data.get("success"):
                             items = json_data["info"].get("items", [])
                             fields = json_data["info"].get("fields", [])
                             result_data = [{fields[i]: item[i] for i in range(len(fields))} for item in items]
                             return self.translate_keys(result_data)
-                    elif export_response.status_code == 429:
-                        self.err429 = True
                     else:
-                        message = f"Попытка {attempt + 1}: Статус {export_response.status_code}"
-                        print(message)
-                        self.common.send_log_message(self.bot_token, self.chat_list, message,1)
+                        message = f"Попытка {attempt + 1}: Статус {str(export_code)}"
+                        self.common.log_func(self.bot_token, self.chat_list, message,1)
                 return None
-            elif response.status_code == 429:
-                self.err429 = True
             else:
                 response.raise_for_status()
         except Exception as e:
-            message = f'Ошибка: {e}. Дата: {self.today.strftime("%Y-%m-%d")}. Запрос - {report}.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: GC. Имя: {self.add_name}. Функция: get_data. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            raise
+
 
     def get_users(self, date):
-        return self.get_data('users')
+        try:
+            final_result = self.get_data('users')
+            message = f'Платформа: GC. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_users. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: GC. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_users. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
 
     def get_deals(self, date):
-        return self.get_data('deals')
+        try:
+            final_result = self.get_data('deals')
+            message = f'Платформа: GC. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_deals. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: GC. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_deals. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
 
     def get_payments(self, date):
-        return self.get_data('payments')
+        try:
+            final_result = self.get_data('payments')
+            message = f'Платформа: GC. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_payments. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: GC. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_payments. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
 
     def get_groups(self, date):
-        return self.get_data('groups')
+        try:
+            final_result = self.get_data('groups')
+            message = f'Платформа: GC. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_groups. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: GC. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_groups. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
 
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')

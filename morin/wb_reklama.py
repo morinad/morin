@@ -54,12 +54,10 @@ class WBreklama:
             except:
                 result = None
             message = "Код:" + str(response.status_code) + '  url:' + 'adv/v1/promotion/adverts (названия кампаний)'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             if response.status_code != 200:
                 message = 'Ответ: ' + str(result)
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 429:
                 self.err429 = True
             if response.status_code == 200 and result != None:
@@ -78,8 +76,7 @@ class WBreklama:
                 return response.status_code
         except Exception as e:
             message = f"Ошибка получения кампаний: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
 
     def get_data(self, body, token):
@@ -89,14 +86,12 @@ class WBreklama:
             json_data = json.dumps(body)
             response = requests.post(url, headers=headers, data=json_data)
             message = "Код:" + str(response.status_code) +'  url:' + 'adv/v2/fullstats'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             try: result = response.json()
             except: result = None
             if response.status_code != 200:
                 message = 'Ответ: '+ str(result)
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
             if response.status_code == 429:
                 self.err429 = True
             if response.status_code == 200 and result != None:
@@ -107,8 +102,7 @@ class WBreklama:
             return response.status_code
         except Exception as e:
             message = f"Ошибка получения данных: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
 
     def get_campaigns_in_period(self, campaign_list, token, start_date ):
@@ -122,12 +116,10 @@ class WBreklama:
             except:
                 result = None
             message = "Код:" + str(response.status_code) + '  url:' + 'adv/v1/promotion/adverts (получение дат кампаний)'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             if response.status_code != 200:
                 message = 'Ответ: '+ str(result)
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 200:
                 df = pd.json_normalize(result)
                 df['advertId'] = df['advertId'].astype('int64')
@@ -147,8 +139,7 @@ class WBreklama:
                 return None
         except Exception as e:
             message = f"Ошибка получения кампаний для периода: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
 
 
@@ -168,8 +159,7 @@ class WBreklama:
             return date_list
         except Exception as e:
             message =f"Ошибка создания списка дат: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return []
 
     def extract_df(self,in_json):
@@ -218,12 +208,10 @@ class WBreklama:
                                         })
                                 except Exception as e:
                                     message = f"Строка nm: {nm}. Не найдено: {e}"
-                                    print(message)
-                                    self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                                    self.common.log_func(self.bot_token, self.chat_list, message, 1)
                     except Exception as e:
                         message = f"Ошибка распознавания {e}: "+ str(day)[:1000]
-                        print(message)
-                        self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+                        self.common.log_func(self.bot_token, self.chat_list, message, 3)
             pd.set_option('display.max_columns', None)
             df = pd.DataFrame(out_json)
             booster_df = pd.DataFrame(out_booster_json)
@@ -234,8 +222,7 @@ class WBreklama:
             df['timeStamp'] = self.now
         except Exception as e:
             message = f"Ошибка extract: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
         return df, booster_df
 
     def wb_reklama_collector(self):
@@ -312,110 +299,111 @@ class WBreklama:
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
             message = f"Ошибка получения списка: {response.status_code}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
         else:
-            result = response.json()
-            advert_ids = []
-            for advert in result['adverts']:
-                for item in advert['advert_list']:
-                    advert_ids.append(item['advertId'])
-            for chunk in self.chunk_list(advert_ids, 50):
-                self.get_names(chunk)
-                time.sleep(10)
+            try:
+                result = response.json()
+                advert_ids = []
+                for advert in result['adverts']:
+                    for item in advert['advert_list']:
+                        advert_ids.append(item['advertId'])
+                for chunk in self.chunk_list(advert_ids, 50):
+                    self.get_names(chunk)
+                    time.sleep(10)
 
-            active_campaigns = []
-            for chunk in self.chunk_list(advert_ids, 50):
-                active_campaigns=active_campaigns + self.get_campaigns_in_period(chunk, self.token, self.start)
-                time.sleep(10)
-            message = "Активные кампании: "+ str(active_campaigns)
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                active_campaigns = []
+                for chunk in self.chunk_list(advert_ids, 50):
+                    active_campaigns=active_campaigns + self.get_campaigns_in_period(chunk, self.token, self.start)
+                    time.sleep(10)
+                message = "Активные кампании: "+ str(active_campaigns)
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
 
-        # забираем активные из wbcampaigns
-            active_campaigns_query = f"""
-                    SELECT advertId, createTime, endTime
-                    FROM wb_ads_campaigns_{self.add_name}
-                    WHERE advertId IN ({', '.join(map(str, active_campaigns))})
-                    """
-            active_campaigns_query_result = self.client.query(active_campaigns_query)
-            df_campaigns = pd.DataFrame(active_campaigns_query_result.result_rows, columns=['advertId', 'createTime', 'endTime'])
-            df_campaigns['createTime'] = pd.to_datetime(df_campaigns['createTime']).dt.date
-            df_campaigns['endTime'] = pd.to_datetime(df_campaigns['endTime']).dt.date
+            # забираем активные из wbcampaigns
+                active_campaigns_query = f"""
+                        SELECT advertId, createTime, endTime
+                        FROM wb_ads_campaigns_{self.add_name}
+                        WHERE advertId IN ({', '.join(map(str, active_campaigns))})
+                        """
+                active_campaigns_query_result = self.client.query(active_campaigns_query)
+                df_campaigns = pd.DataFrame(active_campaigns_query_result.result_rows, columns=['advertId', 'createTime', 'endTime'])
+                df_campaigns['createTime'] = pd.to_datetime(df_campaigns['createTime']).dt.date
+                df_campaigns['endTime'] = pd.to_datetime(df_campaigns['endTime']).dt.date
 
-        # формируем список заданий для wbcollection
-            campaigns_date_list = []
-            yesterday_date = yesterday.strftime("%Y-%m-%d")
-            for _, row in df_campaigns.iterrows():
-                advertId = row['advertId']
-                start_date = row['createTime'].strftime('%Y-%m-%d')
-                end_date = row['endTime'].strftime('%Y-%m-%d')
-                if end_date > yesterday_date:
-                    end_date = yesterday_date
-                if start_date < self.start:
-                    start_date = self.start
-                date_list = self.create_date_list(start_date, end_date)
-                for date in date_list:
-                    campaigns_date_list.append((datetime.strptime(date, '%Y-%m-%d').date(), advertId, False))
-            df_active_dates = pd.DataFrame(campaigns_date_list, columns=['date', 'advertId', 'collect'])
-
-
-        # вставляем задания в wbcollection и делаем оптимайз
-            self.ch_insert(df_active_dates, f'wb_ads_collection_{self.add_name}')
-            time.sleep(20)
-
-            self.client.command(optimize_collection)
-            time.sleep(20)
-
-        # отбираем несделанные даты из wbcollection
-            false_dates_query = f"""
-                    SELECT distinct date  
-                    FROM wb_ads_collection_{self.add_name}
-                    WHERE collect = False"""
-            collect_days_rows = self.client.query(false_dates_query).result_rows
-            collect_days = [item[0] for item in collect_days_rows]
-            n_days_ago = now - timedelta(days=self.backfill_days)
+            # формируем список заданий для wbcollection
+                campaigns_date_list = []
+                yesterday_date = yesterday.strftime("%Y-%m-%d")
+                for _, row in df_campaigns.iterrows():
+                    advertId = row['advertId']
+                    start_date = row['createTime'].strftime('%Y-%m-%d')
+                    end_date = row['endTime'].strftime('%Y-%m-%d')
+                    if end_date > yesterday_date:
+                        end_date = yesterday_date
+                    if start_date < self.start:
+                        start_date = self.start
+                    date_list = self.create_date_list(start_date, end_date)
+                    for date in date_list:
+                        campaigns_date_list.append((datetime.strptime(date, '%Y-%m-%d').date(), advertId, False))
+                df_active_dates = pd.DataFrame(campaigns_date_list, columns=['date', 'advertId', 'collect'])
 
 
-        # для каждой даты находим актуальный список кампаний на сбор
-            for day in collect_days:
-                if self.err429 == False:
-                    difference = n_days_ago.date() - day
-                    sql_date = day.strftime('%Y-%m-%d')
-                    false_campaigns_by_date_query = f"""
-                            SELECT advertId  
-                            FROM wb_ads_collection_{self.add_name}
-                            WHERE collect = False AND date = '{sql_date}'"""
-                    campaigns_to_collect_rows = self.client.query(false_campaigns_by_date_query).result_rows
-                    campaigns_to_collect =  list(set([item[0] for item in campaigns_to_collect_rows]))
+            # вставляем задания в wbcollection и делаем оптимайз
+                self.ch_insert(df_active_dates, f'wb_ads_collection_{self.add_name}')
+                time.sleep(20)
 
-            # делаем сбор по чанкам для каждой даты
-                    for chunk in self.chunk_list(campaigns_to_collect, 50):
-                        body = []
-                        success_list = []
-                        for campaign in chunk:
-                            body.append({"id": int(campaign), "dates": [sql_date]})
-                            if difference.days >= 0:
-                                success_list.append((day, campaign, True))
-                        message = "Получаем дату: " + str(sql_date) + '  Кампании: ' +str(chunk)
-                        print(message)
-                        self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+                self.client.command(optimize_collection)
+                time.sleep(20)
 
-            # получение данных и вставка в wbdata (единой транзакцией вместе с решением коллекшона)
-                        try:
-                            wb_json = self.get_data(body, self.token)
-                            df_success = pd.DataFrame(success_list, columns=['date', 'advertId', 'collect'])
-                            if int(wb_json)==200:
-                                self.ch_insert(df_success, f'wb_ads_collection_{self.add_name}')
-                                message = "День загружен: " + str(sql_date) + "  Кампании: " + str(chunk)
-                                print(message)
-                                self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
-                                self.client.command(optimize_collection)
-                        except Exception as e:
-                            message = "Ошибка: " +str(e)
-                            print(message)
-                            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-                        time.sleep(61)
+            # отбираем несделанные даты из wbcollection
+                false_dates_query = f"""
+                        SELECT distinct date  
+                        FROM wb_ads_collection_{self.add_name}
+                        WHERE collect = False"""
+                collect_days_rows = self.client.query(false_dates_query).result_rows
+                collect_days = [item[0] for item in collect_days_rows]
+                n_days_ago = now - timedelta(days=self.backfill_days)
+
+
+            # для каждой даты находим актуальный список кампаний на сбор
+                for day in collect_days:
+                    if self.err429 == False:
+                        difference = n_days_ago.date() - day
+                        sql_date = day.strftime('%Y-%m-%d')
+                        false_campaigns_by_date_query = f"""
+                                SELECT advertId  
+                                FROM wb_ads_collection_{self.add_name}
+                                WHERE collect = False AND date = '{sql_date}'"""
+                        campaigns_to_collect_rows = self.client.query(false_campaigns_by_date_query).result_rows
+                        campaigns_to_collect =  list(set([item[0] for item in campaigns_to_collect_rows]))
+
+                # делаем сбор по чанкам для каждой даты
+                        for chunk in self.chunk_list(campaigns_to_collect, 50):
+                            body = []
+                            success_list = []
+                            for campaign in chunk:
+                                body.append({"id": int(campaign), "dates": [sql_date]})
+                                if difference.days >= 0:
+                                    success_list.append((day, campaign, True))
+                            message = "Получаем дату: " + str(sql_date) + '  Кампании: ' +str(chunk)
+                            self.common.log_func(self.bot_token, self.chat_list, message, 2)
+
+                # получение данных и вставка в wbdata (единой транзакцией вместе с решением коллекшона)
+                            try:
+                                wb_json = self.get_data(body, self.token)
+                                df_success = pd.DataFrame(success_list, columns=['date', 'advertId', 'collect'])
+                                if int(wb_json)==200:
+                                    self.ch_insert(df_success, f'wb_ads_collection_{self.add_name}')
+                                    message = "День загружен: " + str(sql_date) + "  Кампании: " + str(chunk)
+                                    self.common.log_func(self.bot_token, self.chat_list, message, 2)
+                                    self.client.command(optimize_collection)
+                            except Exception as e:
+                                message = "Ошибка: " +str(e)
+                                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                            time.sleep(61)
+            except Exception as e:
+                message = f'Платформа: WB reklama. Имя: {self.add_name}. Функция: wb_reklama. Ошибка: {e}.'
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+
+
 
         self.client.command(optimize_data)
         time.sleep(20)

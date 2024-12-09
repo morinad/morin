@@ -123,7 +123,7 @@ class OZONbyDate:
                 'upload_table': 'postings_fbo',
                 'func_name': self.get_postings_fbo,
                 'uniq_columns': 'posting_number,created_at',
-                'partitions': 'date',
+                'partitions': '',
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
@@ -177,18 +177,17 @@ class OZONbyDate:
             }
             response = requests.post(url, headers=headers, data=json.dumps(payload))
             code = response.status_code
+            if code == 429:
+                self.err429 = True
             if code == 200:
                 page_count = response.json()['result']['page_count']
                 return page_count
-            elif code == 429:
-                self.err429 = True
             else:
                 response.raise_for_status()
         except Exception as e:
-            message = f'Ошибка: {e}. Дата: {date}. Запрос - транзакции.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_transaction_page_count. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_transactions(self, date):
         try:
@@ -211,19 +210,20 @@ class OZONbyDate:
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
                 code = response.status_code
+                if code == 429:
+                    self.err429 = True
                 if code == 200:
                     operations += response.json()['result']['operations']
-                    return operations
-                elif code == 429:
-                    self.err429 = True
                 else:
                     response.raise_for_status()
                 time.sleep(2)
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_transactions. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return operations
         except Exception as e:
-            message = f'Ошибка: {e}. Дата: {date}. Запрос - транзакции.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            raise
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_transactions. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_stock_on_warehouses(self, date):
         try:
@@ -235,8 +235,7 @@ class OZONbyDate:
             }
             offset = 0
             limit = 1000
-            all_rows = []  # Список для хранения всех записей из 'rows'
-
+            all_rows = []
             while True:
                 payload = {
                     "limit": limit,
@@ -245,7 +244,8 @@ class OZONbyDate:
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
                 code = response.status_code
-
+                if code == 429:
+                    self.err429 = True
                 if code == 200:
                     rows = response.json().get('result', {}).get('rows', [])
                     if not rows:
@@ -253,17 +253,15 @@ class OZONbyDate:
                         break
                     all_rows.extend(rows)  # Добавляем все элементы 'rows' в общий список
                     offset += limit
-                elif code == 429:
-                    self.err429 = True
-                    break
                 else:
                     response.raise_for_status()
-            return all_rows  # Возвращаем итоговый список из 'rows'
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_stock_on_warehouses. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return all_rows
         except Exception as e:
-            message = f'Ошибка: {e}. Запрос - stocks.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_stock_on_warehouses. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_all_products(self, date):
         try:
@@ -283,6 +281,8 @@ class OZONbyDate:
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
                 code = response.status_code
+                if code == 429:
+                    self.err429 = True
                 if code == 200:
                     result = response.json().get('result', {})
                     items = result.get('items', [])
@@ -292,17 +292,15 @@ class OZONbyDate:
                     if len(items) < limit:
                         break
                     last_id = result.get('last_id', "")
-                elif code == 429:
-                    self.err429 = True
-                    break
                 else:
                     response.raise_for_status()
-            return all_items  # Возвращаем итоговый список из 'items'
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_products. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return all_items
         except Exception as e:
-            message = f'Ошибка: {e}. Запрос - products.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_products. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_all_returns_fbo(self, date):
         try:
@@ -322,6 +320,8 @@ class OZONbyDate:
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
                 code = response.status_code
+                if code == 429:
+                    self.err429 = True
                 if code == 200:
                     result = response.json()
                     returns = result.get('returns', [])
@@ -331,17 +331,15 @@ class OZONbyDate:
                     if len(returns) < limit:
                         break
                     last_id = result.get('last_id', 0)
-                elif code == 429:
-                    self.err429 = True
-                    break
                 else:
                     response.raise_for_status()
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns_fbo. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return all_returns  # Возвращаем итоговый список из 'returns'
         except Exception as e:
-            message = f'Ошибка: {e}. Запрос - returns_fbo.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns_fbo. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_all_returns_fbs(self, date):
         try:
@@ -361,56 +359,65 @@ class OZONbyDate:
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
                 code = response.status_code
+                if code == 429:
+                    self.err429 = True
                 if code == 200:
                     result = response.json()
                     returns = result.get('returns', [])
                     if not returns:
                         break
-                    all_returns.extend(returns)  # Добавляем все элементы 'returns' в общий список
+                    all_returns.extend(returns)
                     if len(returns) < limit:
                         break
                     last_id = result.get('last_id', 0)
-                elif code == 429:
-                    self.err429 = True
-                    break
                 else:
                     response.raise_for_status()
-            return all_returns  # Возвращаем итоговый список из 'returns'
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns_fbs. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return all_returns
         except Exception as e:
-            message = f'Ошибка: {e}. Запрос - returns_fbs.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns_fbs. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_realization(self, date):
-        real_date = datetime.strptime(date, "%Y-%m-%d")
-        last_month_date = real_date - relativedelta(months=1)
-        previous_month = last_month_date.month
-        previous_year = last_month_date.year
-        yyyy_mm = f"{previous_year}-{str(previous_month).zfill(2)}-01"
-        final_data = []
-        data = {
-            "month": previous_month,
-            "year": previous_year
-        }
-        headers = {
-            "Client-Id": self.clientid,
-            "Api-Key": self.token,
-            "Content-Type": "application/json"
-        }
-        url = "https://api-seller.ozon.ru/v2/finance/realization"
-        response = requests.post(url, json=data, headers=headers)
-        if response.status_code == 200:
-            result = response.json().get('result', {}).get('rows', [])
-            for row in result:
-                row['year_month'] = yyyy_mm
-                final_data.append(row)
-            return self.common.spread_table(final_data)
-        else:
-            message = f"Error: {response.status_code} - {response.text}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return None
+        try:
+            real_date = datetime.strptime(date, "%Y-%m-%d")
+            last_month_date = real_date - relativedelta(months=1)
+            previous_month = last_month_date.month
+            previous_year = last_month_date.year
+            yyyy_mm = f"{previous_year}-{str(previous_month).zfill(2)}-01"
+            final_data = []
+            data = {
+                "month": previous_month,
+                "year": previous_year
+            }
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            url = "https://api-seller.ozon.ru/v2/finance/realization"
+            response = requests.post(url, json=data, headers=headers)
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                result = response.json().get('result', {}).get('rows', [])
+                for row in result:
+                    row['year_month'] = yyyy_mm
+                    final_data.append(row)
+                final_result = self.common.spread_table(final_data)
+            else:
+                response.raise_for_status()
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_realization. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_realization. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
 
     def get_postings_fbo(self, date):
         try:
@@ -440,64 +447,78 @@ class OZONbyDate:
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
                 code = response.status_code
+                if code == 429:
+                    self.err429 = True
                 if code == 200:
                     result = response.json().get('result', [])
                     if not result:
                         break
                     all_postings.extend(result)
                     offset += limit
-                elif code == 429:
-                    self.err429 = True  # Устанавливаем флаг ошибки 429
-                    break
                 else:
                     response.raise_for_status()
             all_postings_with_date = []
             for dict in all_postings:
                 dict['date']=date
                 all_postings_with_date.append(dict)
-            return self.common.spread_table(all_postings_with_date)  # Возвращаем итоговый список отправлений
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_postings_fbo. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return self.common.spread_table(all_postings_with_date)
         except Exception as e:
-            message = f'Ошибка: {e}. Запрос - postings.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_postings_fbo. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_date_range(self, date):
-        date_obj = datetime.strptime(date, "%Y-%m-%d")
-        day = date_obj.day
-        if day == 1:
-            # С 16-го числа предыдущего месяца по конец предыдущего месяца
-            last_day_of_prev_month = date_obj.replace(day=1) - timedelta(days=1)
-            start_date = last_day_of_prev_month.replace(day=16)
-            end_date = last_day_of_prev_month
-        else:
-            # С 1-го по 15-е число текущего месяца
-            start_date = date_obj.replace(day=1)
-            end_date = date_obj.replace(day=15)
-        return start_date.strftime("%Y-%m-%dT00:00:00.000Z"), end_date.strftime("%Y-%m-%dT23:59:59.999Z")
+        try:
+            date_obj = datetime.strptime(date, "%Y-%m-%d")
+            day = date_obj.day
+            if day == 1:
+                # С 16-го числа предыдущего месяца по конец предыдущего месяца
+                last_day_of_prev_month = date_obj.replace(day=1) - timedelta(days=1)
+                start_date = last_day_of_prev_month.replace(day=16)
+                end_date = last_day_of_prev_month
+            else:
+                # С 1-го по 15-е число текущего месяца
+                start_date = date_obj.replace(day=1)
+                end_date = date_obj.replace(day=15)
+            return start_date.strftime("%Y-%m-%dT00:00:00.000Z"), end_date.strftime("%Y-%m-%dT23:59:59.999Z")
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_date_range. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
 
     def get_finance_total_pages(self, start_date, end_date):
-        """Определяет общее количество страниц"""
-        url = "https://api-seller.ozon.ru/v1/finance/cash-flow-statement/list"
-        headers = {
-            "Client-Id": self.clientid,
-            "Api-Key": self.token,
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "date": {
-                "from": start_date,
-                "to": end_date
-            },
-            "with_details": True,
-            "page": 1,
-            "page_size": 1
-        }
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        if response.status_code == 200:
-            return response.json().get('page_count', 1)
-        else:
-            response.raise_for_status()
+        try:
+            url = "https://api-seller.ozon.ru/v1/finance/cash-flow-statement/list"
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "date": {
+                    "from": start_date,
+                    "to": end_date
+                },
+                "with_details": True,
+                "page": 1,
+                "page_size": 1
+            }
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                return response.json().get('page_count', 1)
+            else:
+                response.raise_for_status()
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Даты: {str(start_date)}-{str(end_date)}. Функция: get_finance_total_pages. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
 
     def get_finance_details(self, date):
         try:
@@ -521,17 +542,21 @@ class OZONbyDate:
                     "page_size": 1000
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
-                if response.status_code == 200:
+                code = response.status_code
+                if code == 429:
+                    self.err429 = True
+                if code == 200:
                     result = response.json().get('result', {}).get('details', [])
                     all.extend(result)
                 else:
                     response.raise_for_status()
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_finance_details. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return self.common.spread_table(all)
         except Exception as e:
-            message = f'Ошибка: {e}. Запрос - finance_details.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_finance_details. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_finance_cashflow(self, date):
         try:
@@ -555,17 +580,21 @@ class OZONbyDate:
                     "page_size": 1000
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
-                if response.status_code == 200:
+                code = response.status_code
+                if code == 429:
+                    self.err429 = True
+                if code == 200:
                     result = response.json().get('result', {}).get('cash_flows', [])
                     all.extend(result)
                 else:
                     response.raise_for_status()
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_finance_details. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return self.common.spread_table(all)
         except Exception as e:
-            message = f'Ошибка: {e}. Запрос - finance_cashflow.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_finance_cashflow. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
 
     def collecting_manager(self):
@@ -573,8 +602,7 @@ class OZONbyDate:
         for report in report_list:
             if report == 'reklama':
                 self.reklama = OZONreklama(self.bot_token, self.chat_list, self.message_type, self.subd, self.add_name, self.clientid, self.token,
-                                           self.host, self.port, self.username, self.password,
-                                             self.database, self.start,  self.backfill_days)
+                                           self.host, self.port, self.username, self.password,                                              self.database, self.start,  self.backfill_days)
                 self.reklama.ozon_reklama_collector()
             else:
                 self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
@@ -592,6 +620,7 @@ class OZONbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
+
 
 
 

@@ -64,6 +64,19 @@ class WBbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 60
             },
+            'incomes': {
+                'platform': 'wb',
+                'report_name': 'incomes',
+                'upload_table': 'incomes',
+                'func_name': self.get_incomes,
+                'uniq_columns': 'incomeId,barcode',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
             'sales': {
                 'platform': 'wb',
                 'report_name': 'sales',
@@ -116,6 +129,19 @@ class WBbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 60
             },
+            'paid_storage': {
+                'platform': 'wb',
+                'report_name': 'paid_storage',
+                'upload_table': 'paid_storage',
+                'func_name': self.get_paid_storage,
+                'uniq_columns': 'date',
+                'partitions': 'date',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_date',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
             'nmreport': {
                 'platform': 'wb',
                 'report_name': 'nmreport',
@@ -131,6 +157,70 @@ class WBbyDate:
             },
         }
 
+    def create_ps_report(self, api_key, date1, date2):
+        try:
+            url = "https://seller-analytics-api.wildberries.ru/api/v1/paid_storage"
+            headers = {"Authorization": api_key}
+            params = {"dateFrom": date1, "dateTo": date2, }
+            response = requests.get(url, headers=headers, params=params)
+            code = response.status_code
+            if code == 200:
+                return response.json()['data']['taskId']
+            else:
+                response.raise_for_status()
+        except Exception as e:
+                message = f'Платформа: WB. Имя: {self.add_name}. Даты: {date1}-{date2}. Функция: create_ps_report. Ошибка: {e}.'
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                return message
+
+
+    def ps_report_status(self, api_key, task_id):
+        try:
+            url = f"https://seller-analytics-api.wildberries.ru/api/v1/paid_storage/tasks/{task_id}/status"
+            headers = {"Authorization": api_key}
+            response = requests.get(url, headers=headers)
+            code = response.status_code
+            if code == 200:
+                return response.json()['data']['status']
+            else:
+                response.raise_for_status()
+        except Exception as e:
+                message = f'Платформа: WB. Имя: {self.add_name}. Функция: ps_report_status. Ошибка: {e}.'
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                return message
+
+
+    def get_ps_report(self, api_key, task_id):
+        try:
+            url = f"https://seller-analytics-api.wildberries.ru/api/v1/paid_storage/tasks/{task_id}/download"
+            headers = {"Authorization": api_key}
+            response = requests.get(url, headers=headers)
+            code = response.status_code
+            if code == 200:
+                return response.json()
+            else:
+                response.raise_for_status()
+        except Exception as e:
+                message = f'Платформа: WB. Имя: {self.add_name}. Функция: get_ps_report. Ошибка: {e}.'
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                return message
+
+
+    def get_paid_storage(self, date):
+        try:
+            task = self.create_ps_report(self.token, date, date)
+            for t in range(20):
+                time.sleep(10)
+                if self.ps_report_status(self.token, task) =='done':
+                    message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders. Результат: ОК'
+                    self.common.log_func(self.bot_token, self.chat_list, message, 1)
+                    return self.get_ps_report(self.token, task)
+        except Exception as e:
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_paid_storage. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
     # дата+токен -> список словарей с заказами (данные)
     def get_orders(self, date):
         try:
@@ -144,21 +234,49 @@ class WBbyDate:
                 "flag": 1,  # Для получения всех заказов на указанную дату
             }
             response = requests.get(url, headers=headers, params=params)
-            code = str(response.status_code)
-            if code == '200':
-                return response.json()
-            elif code == '429':
+            code = response.status_code
+            if code == '429':
                 self.err429 = True
+            if code == '200':
+                final_result = response.json()
             else:
                 response.raise_for_status()
-            message = f'Код: {code}, запрос - orders'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
         except Exception as e:
-            message = f'Ошибка: {e}, запрос - orders'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_incomes(self, date):
+        try:
+            date_rfc3339 = f"{self.start}T00:00:00.000Z"
+            url = "https://statistics-api.wildberries.ru/api/v1/supplier/incomes"
+            headers = {
+                "Authorization": self.token,
+            }
+            params = {
+                "dateFrom": date_rfc3339
+            }
+            response = requests.get(url, headers=headers, params=params, timeout=200)
+            code = response.status_code
+            if code == '429':
+                self.err429 = True
+            if code == '200':
+                json_data = response.json()
+                if not json_data or all(not item for item in json_data if isinstance(json_data, list)):
+                    raise ValueError("Получен пустой Json")
+                final_result = json_data
+            else:
+                response.raise_for_status()
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_incomes. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_incomes. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_orders_changes(self, date):
         try:
@@ -167,21 +285,20 @@ class WBbyDate:
             headers = {"Authorization": self.token}
             params = {"dateFrom": date_rfc3339}
             response = requests.get(url, headers=headers, params=params)
-            code = str(response.status_code)
-            if code == '200':
-                return response.json()
-            elif code == '429':
+            code = response.status_code
+            if code == '429':
                 self.err429 = True
+            if code == '200':
+                final_result = response.json()
             else:
                 response.raise_for_status()
-            message = f'Код: {code}, запрос - orders_changes'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders_changes. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
         except Exception as e:
-            message = f'Ошибка: {e}, запрос - orders_changes'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders_changes. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     # дата+токен -> список словарей с заказами (данные)
     def get_sales(self, date):
@@ -195,21 +312,20 @@ class WBbyDate:
                 "flag": 1,
             }
             response = requests.get(url, headers=headers, params=params)
-            code = str(response.status_code)
-            if code == '200':
-                return response.json()
-            elif code == '429':
+            code = response.status_code
+            if code == '429':
                 self.err429 = True
+            if code == '200':
+                final_result = response.json()
             else:
                 response.raise_for_status()
-            message = f'Код: {code}, запрос - sales'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
         except Exception as e:
-            message = f'Ошибка: {e}, запрос - sales'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_sales_changes(self, date):
         try:
@@ -217,21 +333,20 @@ class WBbyDate:
             headers = {'Authorization': f'Bearer {self.token}'}
             params = {'dateFrom': date}
             response = requests.get(url, headers=headers, params=params)
-            code = str(response.status_code)
-            if code == '200':
-                return response.json()
-            elif code == '429':
+            code = response.status_code
+            if code == '429':
                 self.err429 = True
+            if code == '200':
+                final_result = response.json()
             else:
                 response.raise_for_status()
-            message = f'Код: {code}, запрос - sales_changes'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales_changes. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
         except Exception as e:
-            message = f'Ошибка: {e}, запрос - sales_changes'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales_changes. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     # дата+токен -> список словарей с заказами (данные)
     def get_realized(self, date):
@@ -240,21 +355,20 @@ class WBbyDate:
             headers = {'Authorization': f'Bearer {self.token}'}
             params = {'dateFrom': self.common.shift_date(date,8), 'dateTo': self.common.shift_date(date,1)}
             response = requests.get(url, headers=headers, params=params)
-            code = str(response.status_code)
-            if code == '200':
-                return response.json()
-            elif code == '429':
+            code = response.status_code
+            if code == '429':
                 self.err429 = True
+            if code == '200':
+                final_result = response.json()
             else:
                 response.raise_for_status()
-            message = f'Код: {code}, запрос - realized'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_realized. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
         except Exception as e:
-            message = f'Ошибка: {e}, запрос - realized'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_realized. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_stocks(self, date):
         try:
@@ -269,17 +383,19 @@ class WBbyDate:
             }
             response = requests.get(url, headers=headers, params=params)
             code = str(response.status_code)
+            if code == '429':
+                self.err429 = True
             if code == '200':
-                return response.json()  # Возвращаем данные при успешном ответе
-            elif code == '429':
-                self.err429 = True  # Фиксируем ошибку 429 (превышение лимита запросов)
+                final_result = response.json()
             else:
-                response.raise_for_status()  # Поднимаем исключение для других кодов
+                response.raise_for_status()
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_stocks. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return     final_result
         except Exception as e:
-            message = f'Ошибка: {e}, запрос - stocks'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_stocks. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_nmreport(self, date):
         try:
@@ -312,12 +428,13 @@ class WBbyDate:
                     page += 1  # Переходим на следующую страницу
                 else:
                     response.raise_for_status()
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_nmreport. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_cards)))
         except Exception as e:
-            message = f'Ошибка: {e}. Дата: {date}. Запрос - nm_report.'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
-            return e
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_nmreport. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     # тип отчёта, дата -> данные в CH
     def collecting_manager(self):
@@ -325,7 +442,7 @@ class WBbyDate:
         for report in report_list:
             if report == 'reklama':
                 self.reklama = WBreklama(self.bot_token, self.chat_list, self.message_type, self.subd, self.add_name, self.token, self.host, self.port, self.username, self.password,
-                                             self.database, self.start,  self.backfill_days)
+                                             self.database, self.start,  self.backfill_days,)
                 self.reklama.wb_reklama_collector()
             else:
                 self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
@@ -343,6 +460,7 @@ class WBbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
+
 
 
 

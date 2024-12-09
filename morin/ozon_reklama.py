@@ -60,12 +60,10 @@ class OZONreklama:
             res = requests.post(host + endpoint, headers=headers, json=payload)
             if res.status_code == 200:
                 message = "Токен получен успешно"
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
             else:
                 message = f"Ошибка получения токена: {res.status_code} {res.text}"
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
             response_json = res.json()
             if 'access_token' in response_json:
                 access_token = response_json['access_token']
@@ -74,8 +72,7 @@ class OZONreklama:
             return access_token
         except Exception as e:
             message = "Ошибка: " + str(e)
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
 
 
     def get_names(self, token):
@@ -88,12 +85,10 @@ class OZONreklama:
             except:
                 result = None
             message = "Код:" + str(response.status_code) + '  url:' + 'api/client/campaign'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
             if response.status_code != 200:
                 message = 'Ответ: ' + str(result)
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 200 and result != None:
                 campaigns = response.json()['list']
                 df = pd.json_normalize(campaigns)
@@ -123,8 +118,7 @@ class OZONreklama:
                 return response.status_code
         except Exception as e:
             message = f"Ошибка получения кампаний: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
 
     def text_to_df(self, response_text, date):
@@ -215,13 +209,11 @@ class OZONreklama:
                 response = requests.post(url, headers=headers, json=payload)
                 if response.status_code != 200:
                     message = "Код: "+ str(response.status_code) + str(response.json())
-                    print(message)
-                    self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+                    self.common.log_func(self.bot_token, self.chat_list, message, 2)
                 else:
                     report_uuid = response.json()['UUID']
                     message = report_uuid
-                    print(message)
-                    self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                    self.common.log_func(self.bot_token, self.chat_list, message, 1)
                     url = f'https://performance.ozon.ru:443/api/client/statistics/{report_uuid}'
                     for k in range(300):
                         time.sleep(5)
@@ -256,13 +248,11 @@ class OZONreklama:
                 return response.status_code
             except Exception as e:
                 message= f"Ошибка получения статистики: {e}"
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
                 return None
         else:
             message = f"Обнаружена ошибка 429, запрос не отправлен."
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
 
     def get_campaigns_in_period(self, token, start_date):
@@ -276,13 +266,11 @@ class OZONreklama:
             except:
                 result = None
             message = "Код:" + str(response.status_code) + '  url:' + 'api/client/campaign'
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
 
             if response.status_code != 200:
                 message = 'Ответ: ' + str(result)
-                print(message)
-                self.common.send_log_message(self.bot_token, self.chat_list, message, 1)
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 200 and result != None:
                 campaigns = response.json()['list']
                 df = pd.json_normalize(campaigns)
@@ -302,8 +290,7 @@ class OZONreklama:
                 return advert_id_list
         except Exception as e:
             message = f"Ошибка получения кампаний по датам: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
 
     def create_date_list(self, start_date_str, end_date_str):
@@ -322,8 +309,7 @@ class OZONreklama:
             return date_list
         except Exception as e:
             message = f"Ошибка создания списка дат: {e}"
-            print(message)
-            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return []
 
 
@@ -546,8 +532,7 @@ class OZONreklama:
                             if difference.days >= 0:
                                 success_list.append((day, int(campaign), True))
                         message = "Начинаем загрузку: " + str(sql_date) + "  Кампании: " + str(body)
-                        print(message)
-                        self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+                        self.common.log_func(self.bot_token, self.chat_list, message, 2)
             # получение данных и вставка в ozondata (единой транзакцией вместе с решением коллекшона)
                         try:
                             ozon_json = self.get_data(token, body, sql_date)
@@ -557,15 +542,13 @@ class OZONreklama:
                             if int(ozon_json)==200:
                                 self.ch_insert(df_success, f'ozon_ads_collection_{self.add_name}')
                                 message = "Данные загружены: " + str(sql_date) + "  Кампании: " + str(body)
-                                print(message)
-                                self.common.send_log_message(self.bot_token, self.chat_list, message, 2)
+                                self.common.log_func(self.bot_token, self.chat_list, message, 2)
                                 self.client.command(optimize_collection)
                             if self.err429 == False:
                                 time.sleep(2)
                         except Exception as e:
                             message = "Ошибка: " +str(e)
-                            print(message)
-                            self.common.send_log_message(self.bot_token, self.chat_list, message, 3)
+                            self.common.log_func(self.bot_token, self.chat_list, message, 3)
                     if self.err429 == False:
                         time.sleep(10)
 
