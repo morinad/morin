@@ -235,9 +235,9 @@ class WBbyDate:
             }
             response = requests.get(url, headers=headers, params=params)
             code = response.status_code
-            if code == '429':
+            if code == 429:
                 self.err429 = True
-            if code == '200':
+            if code == 200:
                 final_result = response.json()
             else:
                 response.raise_for_status()
@@ -261,9 +261,9 @@ class WBbyDate:
             }
             response = requests.get(url, headers=headers, params=params, timeout=200)
             code = response.status_code
-            if code == '429':
+            if code == 429:
                 self.err429 = True
-            if code == '200':
+            if code == 200:
                 json_data = response.json()
                 if not json_data or all(not item for item in json_data if isinstance(json_data, list)):
                     raise ValueError("Получен пустой Json")
@@ -286,9 +286,9 @@ class WBbyDate:
             params = {"dateFrom": date_rfc3339}
             response = requests.get(url, headers=headers, params=params)
             code = response.status_code
-            if code == '429':
+            if code == 429:
                 self.err429 = True
-            if code == '200':
+            if code == 200:
                 final_result = response.json()
             else:
                 response.raise_for_status()
@@ -313,9 +313,9 @@ class WBbyDate:
             }
             response = requests.get(url, headers=headers, params=params)
             code = response.status_code
-            if code == '429':
+            if code == 429:
                 self.err429 = True
-            if code == '200':
+            if code == 200:
                 final_result = response.json()
             else:
                 response.raise_for_status()
@@ -334,9 +334,9 @@ class WBbyDate:
             params = {'dateFrom': date}
             response = requests.get(url, headers=headers, params=params)
             code = response.status_code
-            if code == '429':
+            if code == 429:
                 self.err429 = True
-            if code == '200':
+            if code == 200:
                 final_result = response.json()
             else:
                 response.raise_for_status()
@@ -356,9 +356,9 @@ class WBbyDate:
             params = {'dateFrom': self.common.shift_date(date,8), 'dateTo': self.common.shift_date(date,1)}
             response = requests.get(url, headers=headers, params=params)
             code = response.status_code
-            if code == '429':
+            if code == 429:
                 self.err429 = True
-            if code == '200':
+            if code == 200:
                 final_result = response.json()
             else:
                 response.raise_for_status()
@@ -382,10 +382,10 @@ class WBbyDate:
                 "dateFrom": date_rfc3339,
             }
             response = requests.get(url, headers=headers, params=params)
-            code = str(response.status_code)
-            if code == '429':
+            code = response.status_code
+            if code == 429:
                 self.err429 = True
-            if code == '200':
+            if code == 200:
                 final_result = response.json()
             else:
                 response.raise_for_status()

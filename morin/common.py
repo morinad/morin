@@ -52,9 +52,12 @@ class Common:
     def send_logs(self, bot_token, chat_ids):
         url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
         for chat_id in chat_ids:
-            params = {'chat_id': chat_id, 'text': self.message_text}
-            response = requests.get(url, params=params)
-            if response.status_code != 200:
+            try:
+                params = {'chat_id': chat_id, 'text': self.message_text}
+                response = requests.get(url, params=params)
+                if response.status_code != 200:
+                    print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
+            except:
                 print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
         self.message_text = ''
 
@@ -207,7 +210,7 @@ class Common:
             for field, data_type in final_column_types.items():
                 create_table_query.append(f"{field} {data_type}")
         except Exception as e:
-            message = f'Ошибка анализа: {e}'
+            message = f'Функция: analyze_column_types. Ошибка: {e}'
             self.log_func(self.bot_token, self.chat_list,message, 3)
 
 
@@ -251,13 +254,13 @@ class Common:
                         elif 'None' in expected_type:
                             df = df.drop(columns=[column_name])
                     except Exception as e:
-                        message = f"Ошибка при преобразовании столбца '{column_name}': {e}"
+                        message = f"Функция: check_and_convert_types. Ошибка при преобразовании столбца '{column_name}': {e}"
                         self.log_func(self.bot_token, self.chat_list, message, 3)
             df['timeStamp'] = self.now
-            message = f'Датафрейм успешно преобразован'
+            message = f'Функция: check_and_convert_types. Датафрейм успешно преобразован'
             self.log_func(self.bot_token, self.chat_list, message, 2)
         except Exception as e:
-            message= f'Ошибка преобразования df: {e}'
+            message= f'Функция: check_and_convert_types. Ошибка преобразования df: {e}'
             self.log_func(self.bot_token, self.chat_list, message, 3)
         return df
 
