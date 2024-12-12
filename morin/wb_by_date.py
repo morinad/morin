@@ -212,7 +212,7 @@ class WBbyDate:
             for t in range(20):
                 time.sleep(10)
                 if self.ps_report_status(self.token, task) =='done':
-                    message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders. Результат: ОК'
+                    message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_paid_storage. Результат: ОК'
                     self.common.log_func(self.bot_token, self.chat_list, message, 1)
                     return self.get_ps_report(self.token, task)
         except Exception as e:
@@ -235,10 +235,12 @@ class WBbyDate:
             }
             response = requests.get(url, headers=headers, params=params)
             code = response.status_code
+            print(code)
             if code == 429:
                 self.err429 = True
             if code == 200:
                 final_result = response.json()
+
             else:
                 response.raise_for_status()
             message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders. Результат: ОК'

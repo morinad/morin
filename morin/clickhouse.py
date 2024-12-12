@@ -80,6 +80,7 @@ class Clickhouse:
                 client.close()
 
     def ch_execute(self, expression):
+        client = None
         try:
             disp_exp = expression.strip()[:30] + '...'
             client = clickhouse_connect.get_client(host=self.host, port=self.port, username=self.username, password=self.password, database=self.database)
@@ -199,10 +200,12 @@ class Clickhouse:
             missing_dates_str = [date.strftime('%Y-%m-%d') for date in missing_dates]
             message = f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {table_name}. Старт: {start_date}. Функция: get_missing_dates. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return missing_dates_str
         except Exception as e:
             message = f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {table_name}. Функция: get_missing_dates. Ошибка: {e}'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
-        return missing_dates_str
+            return None
+
 
 
     def upload_data(self, platform, report_name,upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date):

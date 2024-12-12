@@ -51,6 +51,32 @@ class MRKTbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 20
             },
+            'mappings': {
+                'platform': 'mrkt',
+                'report_name': 'mappings',
+                'upload_table': 'mappings',
+                'func_name': self.fetch_all_offer_mappings,
+                'uniq_columns': 'timeStamp',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 20
+            },
+            'orders': {
+                'platform': 'mrkt',
+                'report_name': 'orders',
+                'upload_table': 'orders',
+                'func_name': self.fetch_all_orders,
+                'uniq_columns': 'id,creationDate',
+                'partitions': 'creationDate',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 20
+            },
         }
 
     def get_stocks_data(self, campaign_id, token, next_page_token=None):
@@ -92,6 +118,7 @@ class MRKTbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
 
+
     def get_all_stocks(self, date):
         try:
             all_stocks = []
@@ -107,6 +134,101 @@ class MRKTbyDate:
             return all_stocks
         except Exception as e:
             message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_stocks_data. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def get_orders_data(self,date, next_page_token=None):
+        try:
+            final_list = []
+            url = f"https://api.partner.market.yandex.ru/campaigns/{self.clientid}/stats/orders"
+            headers = {
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json"  # Обязательно для запросов
+            }
+            payload = {
+                'dateFrom': date, 'dateTo': date
+            }
+            params = {"limit": 200}
+            if next_page_token:
+                params = {"limit": 200, "page_token": next_page_token}
+            response = requests.post(url, headers=headers, json=payload, params=params)
+            code = response.status_code
+            if code not in {200}:
+                response.raise_for_status()
+            result = response.json()
+            if "result" not in result:
+                return [], None
+            orders = result["result"].get("orders", [])
+            for order in orders:
+                final_list.append(order)
+            next_page_token = result["result"].get("paging", {}).get("nextPageToken")
+            return final_list, next_page_token
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_orders_data. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            raise
+
+
+    def fetch_all_orders(self, date):
+        try:
+            all_orders = []
+            next_page_token = None
+            for _ in range(1000):
+                orders, next_page_token = self.get_orders_data(date, next_page_token)
+                all_orders += orders
+                if not next_page_token:
+                    break
+                time.sleep(0.1)
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(date)}. Функция: fetch_all_orders. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_orders)))
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(date)}. Функция: fetch_all_orders. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def get_offer_mappings_data(self, next_page_token=None):
+        try:
+            url = f"https://api.partner.market.yandex.ru/businesses/{self.clientid}/offer-mappings"
+            headers = {
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json"
+            }
+            params = {"limit": 200}
+            if next_page_token:
+                params["page_token"] = next_page_token
+            response = requests.post(url, headers=headers, params=params)
+            if response.status_code != 200:
+                response.raise_for_status()
+            result = response.json()
+            if "result" not in result:
+                return [], None
+            offer_mappings = result["result"].get("offerMappings", [])
+            next_page_token = result["result"].get("paging", {}).get("nextPageToken")
+            return offer_mappings, next_page_token
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Функция: get_offer_mappings_data. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def fetch_all_offer_mappings(self,date):
+        try:
+            all_offer_mappings = []
+            next_page_token = None
+            for _ in range(1000):
+                offer_mappings, next_page_token = self.get_offer_mappings_data(next_page_token)
+                all_offer_mappings.extend(offer_mappings)
+                if not next_page_token:
+                    break
+                time.sleep(0.1)
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(date)}. Функция: fetch_all_offer_mappings. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_offer_mappings)))
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(date)}. Функция: fetch_all_offer_mappings. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
