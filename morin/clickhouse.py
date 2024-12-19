@@ -43,7 +43,10 @@ class Clickhouse:
             )
             client.command('SELECT 1')
             message = f'Платформа: {self.platform}. Имя: {self.add_name}. Подключение к ClickHouse успешно!'
-            self.common.log_func(self.bot_token, self.chat_list, message,1)
+            try:
+                self.common.log_func(self.bot_token, self.chat_list, message,1)
+            except:
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return True
         except Exception as e:
             message = f'Платформа: {self.platform}. Имя: {self.add_name}. Ошибка подключения к ClickHouse: {e}'
@@ -252,24 +255,28 @@ class Clickhouse:
 
 
     def collecting_report(self, platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, frequency, delay):
-        self.test_clickhouse_connection()
-        create_table_query_collect = f"""
-            CREATE TABLE IF NOT EXISTS {platform}_collection_{self.add_name} (
-            date Date, report String, collect Bool ) ENGINE = ReplacingMergeTree(collect) ORDER BY (report, date)"""
-        optimize_collection = f"OPTIMIZE TABLE {platform}_collection_{self.add_name} FINAL"
-        self.ch_execute(create_table_query_collect)
-        self.ch_execute(optimize_collection)
-        time.sleep(4)
-        if history:
-            date_list = self.get_missing_dates(f'{platform}_collection_{self.add_name}', report_name, self.start)
-            for date in date_list:
+        try:
+            self.test_clickhouse_connection()
+            create_table_query_collect = f"""
+                CREATE TABLE IF NOT EXISTS {platform}_collection_{self.add_name} (
+                date Date, report String, collect Bool ) ENGINE = ReplacingMergeTree(collect) ORDER BY (report, date)"""
+            optimize_collection = f"OPTIMIZE TABLE {platform}_collection_{self.add_name} FINAL"
+            self.ch_execute(create_table_query_collect)
+            self.ch_execute(optimize_collection)
+            time.sleep(4)
+            if history:
+                date_list = self.get_missing_dates(f'{platform}_collection_{self.add_name}', report_name, self.start)
+                for date in date_list:
+                    if self.err429 == False and self.common.to_collect(frequency, date):
+                        message = f'Платформа: {platform}. Имя: {self.add_name}. Таблица: {upload_table}. Репорт: {report_name}. Дата: {date}. Начинаем сбор...'
+                        self.common.log_func(self.bot_token, self.chat_list, message, 2)
+                        self.upload_data(platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
+            else:
+                date = self.today.strftime('%Y-%m-%d')
                 if self.err429 == False and self.common.to_collect(frequency, date):
                     message = f'Платформа: {platform}. Имя: {self.add_name}. Таблица: {upload_table}. Репорт: {report_name}. Дата: {date}. Начинаем сбор...'
                     self.common.log_func(self.bot_token, self.chat_list, message, 2)
                     self.upload_data(platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
-        else:
-            date = self.today.strftime('%Y-%m-%d')
-            if self.err429 == False and self.common.to_collect(frequency, date):
-                message = f'Платформа: {platform}. Имя: {self.add_name}. Таблица: {upload_table}. Репорт: {report_name}. Дата: {date}. Начинаем сбор...'
-                self.common.log_func(self.bot_token, self.chat_list, message, 2)
-                self.upload_data(platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date)
+        except Exception as e:
+            message = f'Платформа: {platform}. Имя: {self.add_name}. Репорт: {report_name}. Функция: collecting_report. Ошибка сбора: {e}'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
