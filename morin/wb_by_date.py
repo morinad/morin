@@ -129,6 +129,19 @@ class WBbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 60
             },
+            'stocks_history': {
+                'platform': 'wb',
+                'report_name': 'stocks_history',
+                'upload_table': 'stocks_history',
+                'func_name': self.get_stocks,
+                'uniq_columns': 'lastChangeDate',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'nothing',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
             'paid_storage': {
                 'platform': 'wb',
                 'report_name': 'paid_storage',
@@ -147,7 +160,7 @@ class WBbyDate:
                 'report_name': 'nmreport',
                 'upload_table': 'nmreport',
                 'func_name': self.get_nmreport,
-                'uniq_columns': 'nmID',
+                'uniq_columns': 'nmID,statistics_selectedPeriod_begin',
                 'partitions': '',
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',

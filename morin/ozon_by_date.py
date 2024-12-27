@@ -65,6 +65,19 @@ class OZONbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 30
             },
+            'stocks_history': {
+                'platform': 'ozon',
+                'report_name': 'stocks_history',
+                'upload_table': 'stocks_history',
+                'func_name': self.get_stock_on_warehouses,
+                'uniq_columns': 'sku',
+                'partitions': 'warehouse_name',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'nothing',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 30
+            },
             'products': {
                 'platform': 'ozon',
                 'report_name': 'products',

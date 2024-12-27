@@ -132,6 +132,7 @@ class BTRXbyDate:
                 if len(data) < 50:
                     break
                 offset += 50
+                time.sleep(1)
             return all_leads
         except Exception as e:
             message = f'Платформа: BTRX. Имя: {self.add_name}. Даты: {str(date1)}-{str(date2)}. Функция: get_bitrix_data. Ошибка: {e}.'

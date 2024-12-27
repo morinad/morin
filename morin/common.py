@@ -27,39 +27,48 @@ class Common:
         self.today = datetime.now().date()
 
     def log_func(self, bot_token, chat_ids,message, value):
-        print(message)
-        log_file_path = "/app/log.txt"
-        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-        if value >= self.value:
-            with open(log_file_path, "a") as log_file:
-                log_file.write(message + "\n\n")
-        self.send_logs_clear(bot_token, chat_ids, message)
+        try:
+            print(message)
+            log_file_path = "/app/log.txt"
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+            if value >= self.value:
+                with open(log_file_path, "a") as log_file:
+                    log_file.write(message + "\n\n")
+            self.send_logs_clear(bot_token, chat_ids, message)
+        except Exception as e:
+            print(f'Ошибка log_func: {e}')
 
     def send_logs_clear(self,bot_token, chat_ids, message):
-        log_file_path = "/app/log.txt"
-        if not os.path.exists(log_file_path):
-            print("Файл лога не существует.")
-        with open(log_file_path, "r") as log_file:
-            content = log_file.read()
-        if len(content) > 1000:
-            self.message_text = content
-            self.send_logs(bot_token, chat_ids)
-            with open(log_file_path, "w") as log_file:
-                log_file.write("")  # Очищаем файл
-            print("Файл очищен, длина содержимого превышала 1000 символов.")
-        return content
+        try:
+            log_file_path = "/app/log.txt"
+            if not os.path.exists(log_file_path):
+                print("Файл лога не существует.")
+            with open(log_file_path, "r") as log_file:
+                content = log_file.read()
+            if len(content) > 1000:
+                self.message_text = content
+                self.send_logs(bot_token, chat_ids)
+                with open(log_file_path, "w") as log_file:
+                    log_file.write("")  # Очищаем файл
+                print("Файл очищен, длина содержимого превышала 1000 символов.")
+            return content
+        except Exception as e:
+            print(f'Ошибка send_logs_clear: {e}')
 
     def send_logs(self, bot_token, chat_ids):
-        url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
-        for chat_id in chat_ids:
-            try:
-                params = {'chat_id': chat_id, 'text': self.message_text}
-                response = requests.get(url, params=params)
-                if response.status_code != 200:
+        try:
+            url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
+            for chat_id in chat_ids:
+                try:
+                    params = {'chat_id': chat_id, 'text': self.message_text}
+                    response = requests.get(url, params=params)
+                    if response.status_code != 200:
+                        print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
+                except:
                     print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
-            except:
-                print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
-        self.message_text = ''
+            self.message_text = ''
+        except Exception as e:
+            print(f'Ошибка send_logs: {e}')
 
     def is_empty(self, result):
         if not result:
