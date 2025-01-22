@@ -368,7 +368,7 @@ class WBbyDate:
         try:
             url = 'https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod'
             headers = {'Authorization': f'Bearer {self.token}'}
-            params = {'dateFrom': self.common.shift_date(date,8), 'dateTo': self.common.shift_date(date,1)}
+            params = {'dateFrom': self.common.shift_date(date,7), 'dateTo': self.common.shift_date(date,1)}
             response = requests.get(url, headers=headers, params=params)
             code = response.status_code
             if code == 429:

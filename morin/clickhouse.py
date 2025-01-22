@@ -56,12 +56,23 @@ class Clickhouse:
 
     def convert_column_to_text(self, client, table_name, column_name, column_type):
         client.command(f"""ALTER TABLE {table_name} ADD COLUMN test {column_type};""")
+        print(f"Создан столбец test: {table_name}, {column_name}, {column_type}")
         client.command(f"""ALTER TABLE {table_name} UPDATE test = toString({column_name}) WHERE 1;""")
-        time.sleep(3)
+        time.sleep(5)
         client.command(f"OPTIMIZE TABLE {table_name} FINAL")
-        time.sleep(3)
+        time.sleep(5)
         client.command(f"""ALTER TABLE {table_name} DROP COLUMN {column_name};""")
         client.command(f"""ALTER TABLE {table_name} RENAME COLUMN test TO {column_name};""")
+
+    def convert_column_to_date(self, client, table_name, column_name):
+        client.command(f"""ALTER TABLE {table_name} ADD COLUMN test2 Date;""")
+        print(f"Создан столбец test2: {table_name}, {column_name}")
+        client.command(f"""ALTER TABLE {table_name} UPDATE test2 = toDate({column_name}) WHERE 1;""")
+        time.sleep(5)
+        client.command(f"OPTIMIZE TABLE {table_name} FINAL;")
+        time.sleep(5)
+        client.command(f"""ALTER TABLE {table_name} DROP COLUMN {column_name};""")
+        client.command(f"""ALTER TABLE {table_name} RENAME COLUMN test2 TO {column_name};""")
 
     # датафрейм, название таблицы -> вставка данных
     def ch_insert(self, df, to_table):
@@ -134,6 +145,7 @@ class Clickhouse:
     # список словарей (данные)+уникальность+имятаблицы -> создание/изменение таблицы ch
     def create_alter_ch(self, data, table_name, uniq_columns, partitions, mergetree):
         try:
+            dangerous_columns_set = set(uniq_columns.strip().split(',') + partitions.strip().split(','))
             print(table_name)
             text_columns_set = self.ch_text_columns_set(table_name)
             upload_list = self.common.analyze_column_types(data, uniq_columns, partitions, text_columns_set)
@@ -149,7 +161,7 @@ class Clickhouse:
             else:
                 part_part = f'PARTITION BY {partitions}'
             create_table_query_campaigns = f'CREATE TABLE IF NOT EXISTS {table_name} (' + uploads + f'timeStamp DateTime ) ENGINE = {mergetree} ORDER BY ({uniq_columns}) {part_part}'
-            print(create_table_query_campaigns)
+            # print(create_table_query_campaigns)
             client = clickhouse_connect.get_client(host=self.host, port=self.port, username=self.username, password=self.password, database=self.database)
             client.query(create_table_query_campaigns)
             query = f"DESCRIBE TABLE {table_name};"
@@ -165,8 +177,17 @@ class Clickhouse:
                     column_name = d.split(' ')[0].strip()
                     column_type = d.split(' ')[1].strip()
                     if column_name in current_names_set and 'String' in column_type:
-                        self.convert_column_to_text(client, table_name, column_name, column_type)
-                        alter_exp = f"преобразуем столбец {column_name} в текст"
+                        message = f'Платформа: {self.platform}. Имя: {self.add_name}. Приведение к тексту {column_name} в {table_name}.'
+                        self.common.log_func(self.bot_token, self.chat_list, message, 1)
+                        if column_name not in dangerous_columns_set:
+                            self.convert_column_to_text(client, table_name, column_name, column_type)
+                            alter_exp = f"преобразуем столбец {column_name} в текст"
+                    elif column_name in current_names_set and column_type == 'Date':
+                        message = f'Платформа: {self.platform}. Имя: {self.add_name}. Приведение к дате {column_name} в {table_name}.'
+                        self.common.log_func(self.bot_token, self.chat_list, message, 1)
+                        if column_name not in dangerous_columns_set:
+                            self.convert_column_to_date(client, table_name, column_name)
+                            alter_exp = f"преобразуем столбец {column_name} в дату"
                     else:
                         alter_exp =start_alter_exp + 'ADD COLUMN IF NOT EXISTS ' + d + ' AFTER timeStamp;'
                         message = f'Платформа: {self.platform}. Имя: {self.add_name}. Попытка изменения {table_name}. Формула: {alter_exp}'
@@ -212,9 +233,8 @@ class Clickhouse:
 
 
     def upload_data(self, platform, report_name,upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date):
-        if self.err429 == False:
-            try:
-
+        try:
+            if self.err429 == False:
                 n_days_ago = self.today - timedelta(days=self.backfill_days)
                 table_name = f'{platform}_{upload_table}_{self.add_name}'
 
@@ -246,12 +266,15 @@ class Clickhouse:
                     message = f'Платформа: {platform}. Имя: {self.add_name}. Репорт: {report_name}. Дата: {date}. Данные добавлены!'
                     self.common.log_func(self.bot_token, self.chat_list, message, 2)
                 time.sleep(delay)
-            except Exception as e:
-                message = f'Платформа: {platform}. Имя: {self.add_name}. Репорт: {report_name}. Дата: {date}. Ошибка вставки: {e}'
+            else:
+                message = f'Платформа: {platform}. Имя: {self.add_name}. Таблица: {report_name}. Функция: upload_data. Ошибка: 429.'
                 self.common.log_func(self.bot_token, self.chat_list, message, 3)
-                time.sleep(delay)
-        else:
-            raise ValueError("Обнаружена ошибка 429")
+                raise ValueError("Обнаружена ошибка 429")
+        except Exception as e:
+            message = f'Платформа: {platform}. Имя: {self.add_name}. Репорт: {report_name}. Дата: {date}. Ошибка вставки: {e}'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            time.sleep(delay)
+
 
 
     def collecting_report(self, platform, report_name, upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, frequency, delay):

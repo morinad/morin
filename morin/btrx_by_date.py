@@ -120,7 +120,9 @@ class BTRXbyDate:
         try:
             all_leads = []
             offset = 0
+            id0 = '0'
             while True:
+                print(f'offset: {str(offset)}')
                 url = f'{self.webhook_link}/{report}?limit=50&start={offset}&filter[>{filter_column}]={date1}T00:00:00&filter[<{filter_column}]={date2}T23:59:59'
                 response = requests.get(url)
                 code =       response.status_code
@@ -128,11 +130,15 @@ class BTRXbyDate:
                     response.raise_for_status()
                 else:
                     data = response.json()['result']
+                    id1 = str(data[0]['ID']).strip()
+                    if id0 == id1:
+                        break
                     all_leads += data
                 if len(data) < 50:
                     break
                 offset += 50
-                time.sleep(1)
+                time.sleep(3)
+                id0 = id1
             return all_leads
         except Exception as e:
             message = f'Платформа: BTRX. Имя: {self.add_name}. Даты: {str(date1)}-{str(date2)}. Функция: get_bitrix_data. Ошибка: {e}.'
