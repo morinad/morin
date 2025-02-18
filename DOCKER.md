@@ -52,3 +52,6 @@ docker run -d --name upload_data --network chnet -v "%BASE_DIR%/settings.xlsx:/a
 **Для Linux (используем папку /home):**
 
 docker run -d --name upload_data --network chnet -v "/home/settings.xlsx:/app/settings.xlsx" morinad/upload_data
+
+Для запуска дополнительных контейнеров загрузки с новым именем:
+docker run -d --name upload_data2 --network chnet -v "/home/settings2.xlsx:/app/settings.xlsx" morinad/upload_data
