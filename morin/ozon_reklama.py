@@ -41,6 +41,7 @@ class OZONreklama:
 
 
 
+
     def chunk_list(self, lst, chunk_size):
         for i in range(0, len(lst), chunk_size):
             yield lst[i:i + chunk_size]
@@ -53,7 +54,7 @@ class OZONreklama:
 
     def get_token(self, client_id, client_secret):
         try:
-            host = 'https://performance.ozon.ru'
+            host = 'https://api-performance.ozon.ru'
             endpoint = '/api/client/token'
             headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
             payload = {"client_id": client_id, "client_secret": client_secret, "grant_type": "client_credentials"}
@@ -77,7 +78,7 @@ class OZONreklama:
 
     def get_names(self, token):
         try:
-            url = 'https://performance.ozon.ru/api/client/campaign'
+            url = 'https://api-performance.ozon.ru:443/api/client/campaign'
             headers = {'Authorization': f'Bearer {token}','Content-Type': 'application/json','Accept': 'application/json'}
             response = requests.get(url, headers=headers)
             try:
@@ -97,14 +98,20 @@ class OZONreklama:
                 df.rename(columns={'autopilot.categoryId': 'autopilot_categoryId'}, inplace=True)
                 df.rename(columns={'autopilot.filters': 'autopilot_filters'}, inplace=True)
                 df.rename(columns={'autopilot.skuAddMode': 'autopilot_skuAddMode'}, inplace=True)
-                df['createdAt'] = df['createdAt'].apply(self.convert_to_timestamp)
-                df['updatedAt'] = df['updatedAt'].apply(self.convert_to_timestamp)
+                df['createdAt'] = pd.to_datetime(df['createdAt'], errors='coerce')
+                df['updatedAt'] = pd.to_datetime(df['updatedAt'], errors='coerce')
                 df['timeStamp'] = self.now
                 df['fromDate'] = pd.to_datetime(df['fromDate'], errors='coerce')
                 df['toDate'] = pd.to_datetime(df['toDate'], errors='coerce')
                 df['toDate'].fillna(pd.Timestamp.today().normalize(), inplace=True)
                 df['fromDate'].fillna(pd.Timestamp.today().normalize(), inplace=True)
                 df['id'] = df['id'].astype('int64')
+                df['dailyBudget'] = df['dailyBudget'].astype('int64')
+                df['autopilot_maxBid'] = df['autopilot_maxBid'].astype('int64')
+                df['autopilot_categoryId'] = df['autopilot_categoryId'].astype('int64')
+                df['weeklyBudget'] = df['weeklyBudget'].astype('int64')
+                df['productAutopilotStrategy'] = df['productAutopilotStrategy'].astype(str)
+                df['budget'] = df['budget'].astype('int64')
                 df['placement'] = df['placement'].astype('str')
                 df['autopilot_filters'] = df['autopilot_filters'].astype('str')
                 required_columns = ['id', 'title', 'state', 'advObjectType', 'fromDate', 'toDate',
@@ -198,7 +205,7 @@ class OZONreklama:
     def get_data(self, token, campaigns, date):
         if self.err429 == False:
             try:
-                url = 'https://performance.ozon.ru:443/api/client/statistics'
+                url = 'https://api-performance.ozon.ru:443/api/client/statistics'
                 headers = {'Authorization': f'Bearer {token}'}
                 payload = {
                     "campaigns": campaigns,
@@ -212,7 +219,7 @@ class OZONreklama:
                     self.common.log_func(self.bot_token, self.chat_list, message, 2)
                 else:
                     report_uuid = response.json()['UUID']
-                    url = f'https://performance.ozon.ru:443/api/client/statistics/{report_uuid}'
+                    url = f'https://api-performance.ozon.ru:443/api/client/statistics/{report_uuid}'
                     for k in range(300):
                         time.sleep(5)
                         try:
@@ -221,7 +228,7 @@ class OZONreklama:
                                 break
                         except:
                             pass
-                    url = f'https://performance.ozon.ru:443/api/client/statistics/report?UUID={report_uuid}'
+                    url = f'https://api-performance.ozon.ru:443/api/client/statistics/report?UUID={report_uuid}'
                     headers = {'Authorization': f'Bearer {token}'}
                     response = requests.get(url, headers=headers)
                     if len(campaigns) == 1:
@@ -256,7 +263,7 @@ class OZONreklama:
     def get_campaigns_in_period(self, token, start_date):
         try:
             end_date = self.yesterday.strftime("%Y-%m-%d")
-            url = 'https://performance.ozon.ru/api/client/campaign'
+            url = 'https://api-performance.ozon.ru:443/api/client/campaign'
             headers = {'Authorization': f'Bearer {token}','Content-Type': 'application/json','Accept': 'application/json'}
             response = requests.get(url, headers=headers)
             try:
@@ -532,6 +539,7 @@ class OZONreklama:
                         self.common.log_func(self.bot_token, self.chat_list, message, 2)
             # получение данных и вставка в ozondata (единой транзакцией вместе с решением коллекшона)
                         try:
+                            token = self.get_token(self.clientid, self.token)
                             ozon_json = self.get_data(token, body, sql_date)
                             if int(ozon_json)==429:
                                 self.err429 = True

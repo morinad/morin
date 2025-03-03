@@ -14,10 +14,10 @@ import math
 
 
 class YDbyDate:
-    def __init__(self, bot_token:str, chats:str, message_type: str, subd:              str,
-                 host: str, port: str, username: str, password: str, database: str,
-                 add_name: str, login: str, token: str ,  start: str, backfill_days: int,
-                 columns : str,  report: str, goals :str = None, attributions :str = None):
+    def __init__(self, bot_token:str = '', chats:str = '', message_type: str = '', subd:              str = '',
+                 host: str = '', port: str = '', username: str = '', password: str = '', database: str = '',
+                 add_name: str = '', login: str = '', token: str  = '',  start: str = '', backfill_days: int = 0,
+                 columns : str = '',  report: str = '', goals :str = None, attributions :str = None):
         self.bot_token = bot_token
         self.chat_list = chats.replace(' ', '').split(',')
         self.message_type = message_type
@@ -267,6 +267,7 @@ class YDbyDate:
             self.source_dict[self.report]['frequency'],
             self.source_dict[self.report]['delay']
         )
+        self.common.send_logs_clear_anyway(self.bot_token, self.chat_list)
 
 
 

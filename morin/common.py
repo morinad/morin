@@ -13,7 +13,7 @@ import math
 from transliterate import translit
 
 class Common:
-    def __init__(self, bot_token:str, chat_list:str, message_type: str):
+    def __init__(self, bot_token:str = '', chat_list:str = '', message_type: str = ''):
         self.bot_token = bot_token
         self.chat_list = chat_list
 
@@ -25,6 +25,7 @@ class Common:
             self.value = 3
         self.now = datetime.now()
         self.today = datetime.now().date()
+
 
     def log_func(self, bot_token, chat_ids,message, value):
         try:
@@ -55,6 +56,23 @@ class Common:
         except Exception as e:
             print(f'Ошибка send_logs_clear: {e}')
 
+    def send_logs_clear_anyway(self,bot_token, chat_ids):
+        try:
+            log_file_path = "/app/log.txt"
+            if not os.path.exists(log_file_path):
+                print("Файл лога не существует.")
+            with open(log_file_path, "r") as log_file:
+                content = log_file.read()
+            if len(content.strip()) > 0:
+                self.message_text = content.strip()
+                self.send_logs(bot_token, chat_ids)
+                with open(log_file_path, "w") as log_file:
+                    log_file.write("")  # Очищаем файл
+                print("Файл очищен, длина содержимого превышала 1000 символов.")
+            return content
+        except Exception as e:
+            print(f'Ошибка send_logs_clear: {e}')
+
     def send_logs(self, bot_token, chat_ids):
         try:
             url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
@@ -77,6 +95,13 @@ class Common:
             return True
         return False
 
+    def flip_date(self, date_text):
+        try:
+            year, month, day = date_text.split('-')
+            return f"{day}.{month}.{year}"
+        except Exception as e:
+            print(f'Ошибка flip_date: {e}')
+
     def is_error(self, result):
         if isinstance(result, str):
             if 'Ошибка:' in result:
@@ -92,6 +117,18 @@ class Common:
         tr = translit(key, 'ru', reversed=True)
         tr = tr.strip().replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower()
         return  tr
+
+    def replace_keys_in_data(self, dictionaries_list):
+        updated_list = []
+        for dictionary in dictionaries_list:
+            updated_dict = {}
+            for key, value in dictionary.items():
+                # Заменяем дефисы на подчеркивания в ключе
+                new_key = key.replace('-', '_')
+                # Добавляем новый ключ и значение в обновленный словарь
+                updated_dict[new_key] = value
+            updated_list.append(updated_dict)
+        return updated_list
 
     def shift_date(self, date_str, days=7):
         # Преобразуем строку в объект datetime
@@ -117,7 +154,7 @@ class Common:
     def get_data_type(self, column, getvalue, partitions):
         getvalue = str(getvalue)
         part_list = partitions.replace(' ', '').split(',')
-        if getvalue == None or getvalue.strip() == '': return 'None'
+        if getvalue == None or getvalue == 'None' or getvalue.strip() == '': return 'None'
         if getvalue.lower() == 'false' or getvalue.lower() == 'true':
             return 'UInt8'
         date_formats = [
@@ -130,6 +167,8 @@ class Common:
             "%Y-%m-%dT%H:%M:%S",  # 2023-10-22T16:36:15 (без миллисекунд и таймзоны)
             "%Y-%m-%d %H:%M:%S",  # 2023-10-22 16:36:15 (без 'T', без миллисекунд)
             "%Y-%m-%d",  # 2023-10-22 (только дата)
+            "%Y.%m.%d",  # 2023-10-22 (только дата)
+            "%d.%m.%Y",  # 22-10-2023 (европейский формат)  # Формат Date с днем в начале: 08-09-2021
             "%d-%m-%Y",  # 22-10-2023 (европейский формат)  # Формат Date с днем в начале: 08-09-2021
             '%Y/%m/%d',  # Формат Date через слэш: 2024/09/01
             '%H:%M:%S',  # Формат Time: 21:20:10
@@ -141,7 +180,7 @@ class Common:
                 if parsed_date.year < 1970:
                     return 'String'
                 # Определяем тип на основе формата
-                if date_format in ['%Y-%m-%d', '%d-%m-%Y', '%Y/%m/%d']:
+                if date_format in ['%Y-%m-%d', '%d-%m-%Y','%Y.%m.%d', '%d.%m.%Y', '%Y/%m/%d']:
                     return 'Date'  # Это формат Date
                 elif date_format == '%H:%M:%S':
                     return 'Time'  # Это формат Time
@@ -180,7 +219,9 @@ class Common:
             "%Y-%m-%dT%H:%M:%S",  # 2023-10-22T16:36:15 (без миллисекунд и таймзоны)
             "%Y-%m-%d %H:%M:%S",  # 2023-10-22 16:36:15 (без 'T', без миллисекунд)
             "%Y-%m-%d",  # 2023-10-22 (только дата)
-            "%d-%m-%Y"  # 22-10-2023 (европейский формат)
+            "%d-%m-%Y",  # 22-10-2023 (европейский формат)
+            "%Y.%m.%d",  # 2023-10-22 (только дата)
+            "%d.%m.%Y"  # 22-10-2023 (европейский формат)
         ]
 
         for fmt in date_formats:
@@ -194,6 +235,7 @@ class Common:
 
     def analyze_column_types(self, data, uniq_columns, partitions, text_columns_set):
         try:
+
             null_columns = []
             column_types = {}
             # Проходим по всем строкам в данных

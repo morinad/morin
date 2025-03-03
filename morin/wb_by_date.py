@@ -14,9 +14,9 @@ import json
 
 
 class WBbyDate:
-    def __init__(self, bot_token:str, chats:str, message_type: str, subd: str,
-                 host: str, port: str, username: str, password: str, database: str,
-                 add_name: str, token: str ,  start: str, backfill_days: int, reports :str):
+    def __init__(self, bot_token:str = '', chats:str = '', message_type: str = '', subd: str = '',
+                 host: str = '', port: str = '', username: str = '', password: str = '', database: str = '',
+                 add_name: str = '', token: str  = '',  start: str = '', backfill_days: int = 0, reports :str = ''):
         self.bot_token = bot_token
         self.chat_list = chats.replace(' ', '').split(',')
         self.message_type = message_type
@@ -35,7 +35,6 @@ class WBbyDate:
         self.reports = reports
         self.backfill_days = backfill_days
         self.platform = 'wb'
-
         self.err429 = False
         self.source_dict = {
             'realized': {
@@ -63,6 +62,32 @@ class WBbyDate:
                 'history': True,
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 60
+            },
+            'sbor_orders': {
+                'platform': 'wb',
+                'report_name': 'sbor_orders',
+                'upload_table': 'sbor_orders',
+                'func_name': self.get_sbor,
+                'uniq_columns': 'id,rid',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 10
+            },
+            'sbor_status': {
+                'platform': 'wb',
+                'report_name': 'sbor_status',
+                'upload_table': 'sbor_status',
+                'func_name': self.get_sbor_status,
+                'uniq_columns': 'id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 10
             },
             'incomes': {
                 'platform': 'wb',
@@ -142,6 +167,19 @@ class WBbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 60
             },
+            'adv_upd': {
+                'platform': 'wb',
+                'report_name': 'adv_upd',
+                'upload_table': 'adv_upd',
+                'func_name': self.get_adv_upd,
+                'uniq_columns': 'advertId,updTime,paymentType',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 5
+            },
             'paid_storage': {
                 'platform': 'wb',
                 'report_name': 'paid_storage',
@@ -169,6 +207,110 @@ class WBbyDate:
                 'delay': 60
             },
         }
+
+    def get_adv_upd(self, date):
+        try:
+            url = "https://advert-api.wildberries.ru/adv/v1/upd"
+            headers = {"Authorization": self.token}
+            params = {"from": date, "to": date }
+            response = requests.get(url, headers=headers, params=params)
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                final_result = response.json()
+            else:
+                response.raise_for_status()
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_adv_upd. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+                message = f'Платформа: WB. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_adv_upd. Ошибка: {e}.'
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                return message
+
+    def get_sbor_status(self, date):
+        try:
+            url = "https://marketplace-api.wildberries.ru/api/v3/orders"
+            headers = {"Authorization": self.token}
+            next = '0'
+            final_result = []
+            while True:
+                ids_to_collect = []
+                params = {'limit': "1000", 'next': next,
+                          "dateFrom": int(datetime.strptime( date+' 00:00:00', "%Y-%m-%d %H:%M:%S").timestamp()),
+                          "dateTo" : int(datetime.strptime( date+' 23:59:59', "%Y-%m-%d %H:%M:%S").timestamp())}
+                response = requests.get(url, headers=headers, params=params)
+                code = response.status_code
+                if code == 429:
+                    self.err429 = True
+                if code == 200:
+                    next = str(response.json()['next'])
+                    orders = response.json()['orders']
+                    if len(orders)==0:
+                        break
+                    else:
+                        for i in orders:
+                            ids_to_collect.append(i['id'])
+                else:
+                    response.raise_for_status()
+                status_url = "https://marketplace-api.wildberries.ru/api/v3/orders/status"
+                status_headers = {"Authorization": self.token, 'Content-Type': 'application/json'}
+                payload = {"orders": ids_to_collect}
+                response = requests.post(status_url, headers=status_headers, json=payload)
+                code = response.status_code
+                if code == 429:
+                    self.err429 = True
+                if code == 200:
+                    data = response.json()['orders']
+                    final_result += data
+                else:
+                    response.raise_for_status()
+                if len(orders)<1000:
+                    break
+                time.sleep(1)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sbor_status. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+                message = f'Платформа: WB. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_sbor_status. Ошибка: {e}.'
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                return message
+
+
+    def get_sbor(self, date):
+        try:
+            url = "https://marketplace-api.wildberries.ru/api/v3/orders"
+            headers = {"Authorization": self.token}
+            next = '0'
+            final_result = []
+            while True:
+                params = {'limit': "1000", 'next': next,
+                          "dateFrom": int(datetime.strptime( date+' 00:00:00', "%Y-%m-%d %H:%M:%S").timestamp()),
+                          "dateTo" : int(datetime.strptime( date+' 23:59:59', "%Y-%m-%d %H:%M:%S").timestamp())}
+                response = requests.get(url, headers=headers, params=params)
+                code = response.status_code
+                if code == 429:
+                    self.err429 = True
+                if code == 200:
+                    orders = response.json()['orders']
+                    if len(orders)==0:
+                        break
+                    else:
+                        final_result += orders
+                else:
+                    response.raise_for_status()
+                next = str(response.json()['next'])
+                if len(orders)<1000:
+                    break
+                time.sleep(1)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sbor. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+                message = f'Платформа: WB. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_sbor. Ошибка: {e}.'
+                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                return message
 
     def create_ps_report(self, api_key, date1, date2):
         try:
@@ -199,7 +341,7 @@ class WBbyDate:
                 response.raise_for_status()
         except Exception as e:
                 message = f'Платформа: WB. Имя: {self.add_name}. Функция: ps_report_status. Ошибка: {e}.'
-                self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
                 return message
 
 
@@ -441,6 +583,7 @@ class WBbyDate:
                     if not is_next_page:
                         break  # Если страниц больше нет, выходим из цикла
                     page += 1  # Переходим на следующую страницу
+                    time.sleep(22)
                 else:
                     response.raise_for_status()
             message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_nmreport. Результат: ОК'
@@ -475,6 +618,7 @@ class WBbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
+        self.common.send_logs_clear_anyway(self.bot_token, self.chat_list)
 
 
 

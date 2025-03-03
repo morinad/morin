@@ -13,9 +13,9 @@ import json
 
 
 class VKbyDate:
-    def __init__(self, bot_token:str, chats:str, message_type: str, subd: str,
-                 host: str, port: str, username: str, password: str, database: str,
-                 add_name: str, token: str ,  start: str, backfill_days: int, reports :str):
+    def __init__(self, bot_token:str = '', chats:str = '', message_type: str = '', subd: str = '',
+                 host: str = '', port: str = '', username: str = '', password: str = '', database: str = '',
+                 add_name: str = '', token: str  = '',  start: str = '', backfill_days: int = 0, reports :str = ''):
         self.bot_token = bot_token
         self.chat_list = chats.replace(' ', '').split(',')
         self.message_type = message_type
@@ -277,6 +277,7 @@ class VKbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
+        self.common.send_logs_clear_anyway(self.bot_token, self.chat_list)
 
 
 

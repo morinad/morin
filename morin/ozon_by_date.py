@@ -15,9 +15,9 @@ from dateutil.relativedelta import relativedelta
 
 
 class OZONbyDate:
-    def __init__(self,  bot_token:str, chats:str, message_type: str, subd: str,
-                 host: str, port: str, username: str, password: str, database: str,
-                                  add_name: str, clientid:str, token: str ,  start: str, backfill_days: int, reports :str):
+    def __init__(self,  bot_token:str = '', chats:str = '', message_type: str = '', subd: str = '',
+                 host: str = '', port: str = '', username: str = '', password: str = '', database: str = '',
+                                  add_name: str = '', clientid:str = '', token: str  = '',  start: str = '', backfill_days: int = 0, reports :str = ''):
         self.bot_token = bot_token
         self.chat_list = chats.replace(' ', '').split(',')
         self.message_type = message_type
@@ -91,24 +91,11 @@ class OZONbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 30
             },
-            'returns_fbo': {
+            'returns': {
                 'platform': 'ozon',
-                'report_name': 'returns_fbo',
-                'upload_table': 'returns_fbo',
-                'func_name': self.get_all_returns_fbo,
-                'uniq_columns': 'return_id',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
-                'delay': 30
-            },
-            'returns_fbs': {
-                'platform': 'ozon',
-                'report_name': 'returns_fbs',
-                'upload_table': 'returns_fbs',
-                'func_name': self.get_all_returns_fbs,
+                'report_name': 'returns',
+                'upload_table': 'returns',
+                'func_name': self.get_all_returns,
                 'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
@@ -278,7 +265,7 @@ class OZONbyDate:
 
     def get_all_products(self, date):
         try:
-            url = "https://api-seller.ozon.ru/v2/product/list"
+            url = "https://api-seller.ozon.ru/v3/product/list"
             headers = {
                 "Client-Id": self.clientid,
                 "Api-Key": self.token,
@@ -290,7 +277,8 @@ class OZONbyDate:
             while True:
                 payload = {
                     "last_id": last_id,
-                    "limit": limit
+                    "limit": limit,
+                    "filter" : {}
                 }
                 response = requests.post(url, headers=headers, data=json.dumps(payload))
                 code = response.status_code
@@ -315,15 +303,16 @@ class OZONbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
-    def get_all_returns_fbo(self, date):
+
+    def get_all_returns(self, date):
         try:
-            url = "https://api-seller.ozon.ru/v3/returns/company/fbo"
+            url = "https://api-seller.ozon.ru/v1/returns/list"
             headers = {
                 "Client-Id": self.clientid,
                 "Api-Key": self.token,
                 "Content-Type": "application/json"
             }
-            limit = 1000  # Можно задать желаемый лимит записей на один запрос
+            limit = 500  # Можно задать желаемый лимит записей на один запрос
             last_id = 0  # Инициализируем last_id с начальным значением 0
             all_returns = []  # Список для хранения всех возвратов
             while True:
@@ -343,55 +332,17 @@ class OZONbyDate:
                     all_returns.extend(returns)  # Добавляем все элементы 'returns' в общий список
                     if len(returns) < limit:
                         break
-                    last_id = result.get('last_id', 0)
+                    last_id = int(returns[-1]['id'])
                 else:
                     response.raise_for_status()
-            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns_fbo. Результат: ОК'
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return all_returns  # Возвращаем итоговый список из 'returns'
         except Exception as e:
-            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns_fbo. Ошибка: {e}.'
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
-    def get_all_returns_fbs(self, date):
-        try:
-            url = "https://api-seller.ozon.ru/v3/returns/company/fbs"
-            headers = {
-                "Client-Id": self.clientid,
-                "Api-Key": self.token,
-                "Content-Type": "application/json"
-            }
-            limit = 1000  # Устанавливаем лимит на количество записей за запрос
-            last_id = 0  # Инициализируем last_id с начальным значением 0
-            all_returns = []  # Список для хранения всех возвратов
-            while True:
-                payload = {
-                    "limit": limit,
-                    "last_id": last_id
-                }
-                response = requests.post(url, headers=headers, data=json.dumps(payload))
-                code = response.status_code
-                if code == 429:
-                    self.err429 = True
-                if code == 200:
-                    result = response.json()
-                    returns = result.get('returns', [])
-                    if not returns:
-                        break
-                    all_returns.extend(returns)
-                    if len(returns) < limit:
-                        break
-                    last_id = result.get('last_id', 0)
-                else:
-                    response.raise_for_status()
-            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns_fbs. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
-            return all_returns
-        except Exception as e:
-            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns_fbs. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
 
     def get_realization(self, date):
         try:
@@ -633,6 +584,7 @@ class OZONbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
+        self.common.send_logs_clear_anyway(self.bot_token, self.chat_list)
 
 
 

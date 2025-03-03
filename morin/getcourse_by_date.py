@@ -16,9 +16,9 @@ from dateutil.relativedelta import relativedelta
 
 
 class GCbyDate:
-    def __init__(self, bot_token:str, chats:str, message_type: str, subd: str,
-                 host: str, port: str, username: str, password: str, database: str,
-                 add_name: str, clientid:str, token: str , start: str, group_id: str, reports :str):
+    def __init__(self, bot_token:str = '', chats:str = '', message_type: str = '', subd: str = '',
+                 host: str = '', port: str = '', username: str = '', password: str = '', database: str = '',
+                 add_name: str = '', clientid:str = '', token: str  = '', start: str = '', group_id: str = '', reports :str = ''):
         self.bot_token = bot_token
         self.chat_list = chats.replace(' ','').split(',')
         self.message_type  = message_type
@@ -99,7 +99,7 @@ class GCbyDate:
         try:
             def transliterate_key(key):
                 tr = translit(key, 'ru', reversed=True)
-                return    tr.replace(' ','_').replace('-','_').replace(",",'').replace("'",'').replace(".",'').replace("(",'').replace(")",'').lower()
+                return    tr.replace(' ','_').replace('?','').replace('-','_').replace(",",'').replace("'",'').replace(".",'').replace("(",'').replace(")",'').lower()
             for dictionary in list_of_dicts:
                 new_dict = {}
                 for key, value in dictionary.items():
@@ -117,7 +117,7 @@ class GCbyDate:
     def get_data(self, report):
         try:
             delay = 10
-            max_attempts = 10
+            max_attempts = 20
             querydata = {"key": self.token}
             if report == "groups":
                 report += r'/' +str(self.group_id) + r'/users'
@@ -127,7 +127,15 @@ class GCbyDate:
             if code == 429:
                 self.err429 = True
             if code == 200:
-                export_id = response.json()["info"].get("export_id")
+                time.sleep(delay)
+                for attempt in range(max_attempts):
+                    try:
+                        export_id = response.json()["info"].get("export_id")
+                        break
+                    except:
+                        message = f"Попытка {attempt + 1}: Ответ: {str(response.json())}"
+                        self.common.log_func(self.bot_token, self.chat_list, message, 1)
+                        time.sleep(delay)
                 export_url = f"{self.clientid}/pl/api/account/exports/{export_id}".replace(r'//pl',r'/pl')
                 for attempt in range(max_attempts):
                     time.sleep(delay)
@@ -220,5 +228,6 @@ class GCbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
+        self.common.send_logs_clear_anyway(self.bot_token, self.chat_list)
 
 

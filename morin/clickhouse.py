@@ -55,14 +55,14 @@ class Clickhouse:
 
 
     def convert_column_to_text(self, client, table_name, column_name, column_type):
-        client.command(f"""ALTER TABLE {table_name} ADD COLUMN test {column_type};""")
-        print(f"Создан столбец test: {table_name}, {column_name}, {column_type}")
-        client.command(f"""ALTER TABLE {table_name} UPDATE test = toString({column_name}) WHERE 1;""")
+        client.command(f"""ALTER TABLE {table_name} ADD COLUMN test1 {column_type};""")
+        print(f"Создан столбец test1: {table_name}, {column_name}, {column_type}")
+        client.command(f"""ALTER TABLE {table_name} UPDATE test1 = toString({column_name}) WHERE 1;""")
         time.sleep(5)
         client.command(f"OPTIMIZE TABLE {table_name} FINAL")
         time.sleep(5)
         client.command(f"""ALTER TABLE {table_name} DROP COLUMN {column_name};""")
-        client.command(f"""ALTER TABLE {table_name} RENAME COLUMN test TO {column_name};""")
+        client.command(f"""ALTER TABLE {table_name} RENAME COLUMN test1 TO {column_name};""")
 
     def convert_column_to_date(self, client, table_name, column_name):
         client.command(f"""ALTER TABLE {table_name} ADD COLUMN test2 Date;""")
@@ -86,7 +86,7 @@ class Clickhouse:
             optimize_table = f"OPTIMIZE TABLE {to_table} FINAL"
             client.command(optimize_table)
         except Exception as e:
-            message = f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {to_table}. Ошибка вставки в CH: {e}'
+            message = f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {to_table}. Функция: ch_insert. Ошибка: {e}'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
         finally:
@@ -205,7 +205,7 @@ class Clickhouse:
 
 
 
-    def get_missing_dates(self, table_name, report_name, start_date_str):
+    def get_missing_dates(self, table_name, report_name, start_date_str, include_today):
         try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
             query = f"""
@@ -217,9 +217,14 @@ class Clickhouse:
             existing_dates = {row[0] for row in result.result_rows}
             current_date = start_date
             all_dates = set()
-            while current_date < self.today:
-                all_dates.add(current_date)
-                current_date += timedelta(days=1)
+            if include_today:
+                while current_date <= self.today:
+                    all_dates.add(current_date)
+                    current_date += timedelta(days=1)
+            else:
+                while current_date < self.today:
+                    all_dates.add(current_date)
+                    current_date += timedelta(days=1)
             missing_dates = sorted(all_dates - existing_dates)
             missing_dates_str = [date.strftime('%Y-%m-%d') for date in missing_dates]
             message = f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {table_name}. Старт: {start_date}. Функция: get_missing_dates. Результат: ОК'
@@ -288,7 +293,7 @@ class Clickhouse:
             self.ch_execute(optimize_collection)
             time.sleep(4)
             if history:
-                date_list = self.get_missing_dates(f'{platform}_collection_{self.add_name}', report_name, self.start)
+                date_list = self.get_missing_dates(f'{platform}_collection_{self.add_name}', report_name, self.start,  False)
                 for date in date_list:
                     if self.err429 == False and self.common.to_collect(frequency, date):
                         message = f'Платформа: {platform}. Имя: {self.add_name}. Таблица: {upload_table}. Репорт: {report_name}. Дата: {date}. Начинаем сбор...'
