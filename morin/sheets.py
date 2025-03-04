@@ -25,6 +25,22 @@ class Sheets:
         self.sheets_client_secret = sheets_client_secret
         self.sheets_redirect_uri = sheets_redirect_uri
 
+    def str_value(self, value):
+        try:
+            # Пробуем преобразовать значение в float
+            float_value = float(value)
+
+            # Проверяем, является ли число целым (дробная часть нулевая)
+            if float_value == int(float_value):
+                return int(float_value)  # Возвращаем целое число как строку
+            else:
+                # Возвращаем число с запятой вместо точки
+                return (str(float_value).replace('.', ','))
+        except (ValueError, TypeError):
+            # Если не удалось преобразовать в число, возвращаем как строку
+            return str(value)
+
+
     def generate_dates_list(self,days_back, include_today=False):
         date_list = []
         today = datetime.today()
@@ -82,22 +98,35 @@ class Sheets:
             sheet = spreadsheet.add_worksheet(title=sheet_name, rows="100", cols="20")
         if clean:
             sheet.clear()
+
+        # Формируем заголовки и строки данных
         headers = list(data[0].keys())
+        headers = [item if item != '' else '-' for item in headers]
         rows = [headers]
         for item in data:
-            row = list(item.values())
+            row = []
+            for value in item.values():
+                # Заменяем пустые строки на пробел
+                if value == None or str(value).strip()=='':
+                    row.append("-")  # Заменяем на пробел
+                else:
+                    row.append(self.str_value(value))
             rows.append(row)
+
         table_text = str(sheet.acell('A1').value) + str(sheet.acell('A2').value)
-        table_text = table_text.replace('None','')
+        table_text = table_text.replace('None', '')
         print(table_text)
-        if clean or table_text .strip() =='':
-            sheet.update('A1', rows)
+
+        if clean or table_text.strip() == '':
+            sheet.update('A1', rows,value_input_option="USER_ENTERED")
         else:
             sheet.append_rows(rows[1:])  # append_rows не вставляет заголовки, поэтому начинаем с rows[1:]
+
         print(f"Данные успешно вставлены на лист '{sheet_name}'.")
 
+
     def sheets_delete_rows(self, refresh_token, spreadsheet_id, sheet_name="Sheet1", column_name='Column1',
-                           value='test'):
+                           value='test', contains=False):
         credentials = Credentials(
             token=None,
             refresh_token=refresh_token,
@@ -127,9 +156,35 @@ class Sheets:
 
         rows_to_delete = []
         for i, row in enumerate(data, start=2):
-            if str(row[column_name]) == str(value):
-                rows_to_delete.append(i)
-        for row_index in reversed(rows_to_delete):
-            sheet.delete_rows(row_index)
-        print(f"Удалено {len(rows_to_delete)} строк на листе '{sheet_name}', где '{column_name}' = '{value}'.")
+            cell_value = str(row[column_name])
+            if contains:
+                if str(value) in cell_value:
+                    rows_to_delete.append(i)
+            else:
+                if cell_value == str(value):
+                    rows_to_delete.append(i)
 
+        # Оптимизация: удаляем строки группами
+        if rows_to_delete:
+            # Сортируем индексы строк в обратном порядке
+            rows_to_delete.sort(reverse=True)
+
+            # Формируем запросы на удаление строк
+            requests = []
+            for row_index in rows_to_delete:
+                requests.append({
+                    "deleteDimension": {
+                        "range": {
+                            "sheetId": sheet.id,  # ID листа
+                            "dimension": "ROWS",
+                            "startIndex": row_index - 1,  # Индекс строки (начинается с 0)
+                            "endIndex": row_index  # Конечный индекс (не включительно)
+                        }
+                    }
+                })
+
+            # Выполняем все запросы за один вызов API
+            spreadsheet.batch_update({"requests": requests})
+
+        print(
+            f"Удалено {len(rows_to_delete)} строк на листе '{sheet_name}', где '{column_name}' {'содержит' if contains else 'равно'} '{value}'.")

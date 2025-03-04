@@ -225,7 +225,7 @@ class OZONbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
-    def get_stock_on_warehouses(self, date):
+    def get_stock_on_warehouses(self, date=''):
         try:
             url = "https://api-seller.ozon.ru/v2/analytics/stock_on_warehouses"
             headers = {
@@ -263,7 +263,7 @@ class OZONbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
-    def get_all_products(self, date):
+    def get_all_products(self, date=''):
         try:
             url = "https://api-seller.ozon.ru/v3/product/list"
             headers = {
@@ -304,7 +304,7 @@ class OZONbyDate:
             return message
 
 
-    def get_all_returns(self, date):
+    def get_all_returns(self, date=''):
         try:
             url = "https://api-seller.ozon.ru/v1/returns/list"
             headers = {
@@ -437,7 +437,7 @@ class OZONbyDate:
         try:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
             day = date_obj.day
-            if day == 1:
+            if day <= 15:
                 # С 16-го числа предыдущего месяца по конец предыдущего месяца
                 last_day_of_prev_month = date_obj.replace(day=1) - timedelta(days=1)
                 start_date = last_day_of_prev_month.replace(day=16)

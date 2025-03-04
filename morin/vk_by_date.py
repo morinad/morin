@@ -225,7 +225,7 @@ class VKbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return  message
 
-    def get_banners_list(self, date):
+    def get_banners_list(self, date=''):
         try:
             final_result = self.fetch_vk_objects('banners')
             message = f'Платформа: VK. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_banners_list. Результат: ОК'
@@ -236,7 +236,7 @@ class VKbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return  message
 
-    def get_groups_list(self, date):
+    def get_groups_list(self, date=''):
         try:
             final_result = self.fetch_vk_objects('ad_groups')
             message = f'Платформа: VK. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_groups_list. Результат: ОК'
@@ -247,7 +247,7 @@ class VKbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return  message
 
-    def get_campaigns_list(self, date):
+    def get_campaigns_list(self, date=''):
         try:
             final_result = self.fetch_vk_objects('ad_plans')
             message = f'Платформа: VK. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_campaigns_list. Результат: ОК'

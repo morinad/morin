@@ -406,7 +406,7 @@ class WBbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
-    def get_incomes(self, date):
+    def get_incomes(self, date=''):
         try:
             date_rfc3339 = f"{self.start}T00:00:00.000Z"
             url = "https://statistics-api.wildberries.ru/api/v1/supplier/incomes"
@@ -527,7 +527,7 @@ class WBbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
-    def get_stocks(self, date):
+    def get_stocks(self, date=''):
         try:
             # Преобразуем дату в формат RFC3339
             date_rfc3339 = f"{self.start}T00:00:00.000Z"

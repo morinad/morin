@@ -145,7 +145,7 @@ class YDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
 
-    def get_data(self, date):
+    def get_data(self, date=''):
         try:
             final_result = self.get_report(self.start, self.yesterday.strftime('%Y-%m-%d'))
             message = f'Платформа: YD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_data. Результат: ОК'
@@ -217,7 +217,7 @@ class YDbyDate:
 
 
 
-    def collect_campaign_ads(self, date):
+    def collect_campaign_ads(self, date=''):
         try:
             final_list = []
             datestr = self.today.strftime('%Y-%m-%d')

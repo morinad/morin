@@ -119,7 +119,7 @@ class MRKTbyDate:
             raise
 
 
-    def get_all_stocks(self, date):
+    def get_all_stocks(self, date=''):
         try:
             all_stocks = []
             next_page_token = None
@@ -214,7 +214,7 @@ class MRKTbyDate:
             return message
 
 
-    def fetch_all_offer_mappings(self,date):
+    def fetch_all_offer_mappings(self,date=''):
         try:
             all_offer_mappings = []
             next_page_token = None

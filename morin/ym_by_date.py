@@ -130,7 +130,7 @@ class YMbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
 
-    def get_data(self, date):
+    def get_data(self, date=''):
         try:
             final_result = self.fetch_all_metrika_data(self.start, self.yesterday.strftime('%Y-%m-%d'))
             message = f'Платформа: YM. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_data. Результат: ОК'

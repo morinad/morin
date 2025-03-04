@@ -162,7 +162,7 @@ class GCbyDate:
             raise
 
 
-    def get_users(self, date):
+    def get_users(self, date=''):
         try:
             final_result = self.get_data('users')
             message = f'Платформа: GC. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_users. Результат: ОК'
@@ -174,7 +174,7 @@ class GCbyDate:
             return message
 
 
-    def get_deals(self, date):
+    def get_deals(self, date=''):
         try:
             final_result = self.get_data('deals')
             message = f'Платформа: GC. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_deals. Результат: ОК'
@@ -186,7 +186,7 @@ class GCbyDate:
             return message
 
 
-    def get_payments(self, date):
+    def get_payments(self, date=''):
         try:
             final_result = self.get_data('payments')
             message = f'Платформа: GC. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_payments. Результат: ОК'
@@ -198,7 +198,7 @@ class GCbyDate:
             return message
 
 
-    def get_groups(self, date):
+    def get_groups(self, date=''):
         try:
             final_result = self.get_data('groups')
             message = f'Платформа: GC. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_groups. Результат: ОК'
