@@ -220,8 +220,8 @@ class OZONreklama:
                 else:
                     report_uuid = response.json()['UUID']
                     url = f'https://api-performance.ozon.ru:443/api/client/statistics/{report_uuid}'
-                    for k in range(300):
-                        time.sleep(5)
+                    for k in range(200):
+                        time.sleep(60)
                         try:
                             response = requests.get(url, headers=headers)
                             if response.json()['state']=="OK":

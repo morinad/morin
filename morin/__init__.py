@@ -7,3 +7,4 @@ from .ym_by_date import YMbyDate
 from .btrx_by_date import BTRXbyDate
 from .vk_by_date import VKbyDate
 from .alfacrm_by_date import ALFAbyDate
+from .yandex_disk_by_page import DISKbyPage
