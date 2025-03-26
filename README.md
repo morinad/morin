@@ -15,11 +15,11 @@
 WB, OZON, Yandex Market, GetCourse, Yandex Direct, VK Ads, Yandex Metrika, Bitrix24.
 
 ### Полезные ссылки:
-Подробная статья: http://directprobi.ru/blogs/dannye-api-v-clickhouse-na-python-docker-connectors-wb-ozon-yandex/
-Основное видео с демонстрацией: https://youtu.be/OHwtIrQyF68
-Ответы на вопросы: https://youtu.be/sK4mHmAbu4A
-Все полезные файлы на Boosty: https://boosty.to/morinad/posts/ae00106e-4e29-4010-9aff-433d28b620f8?share=post_link
-Применение коннекторов для Google Sheets без Clickhouse и Docker: https://youtu.be/KvuaLI8mGDU
+- Подробная статья: http://directprobi.ru/blogs/dannye-api-v-clickhouse-na-python-docker-connectors-wb-ozon-yandex/
+- Основное видео с демонстрацией: https://youtu.be/OHwtIrQyF68
+- Ответы на вопросы: https://youtu.be/sK4mHmAbu4A
+- Все полезные файлы на Boosty: https://boosty.to/morinad/posts/ae00106e-4e29-4010-9aff-433d28b620f8?share=post_link
+- Применение коннекторов для Google Sheets без Clickhouse и Docker: https://youtu.be/KvuaLI8mGDU
 
 ### Новые видео, статьи и полезности в Telegram-канале: https://t.me/+2kqVrjV5aXs0NTRi
 
