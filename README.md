@@ -15,6 +15,7 @@ WB, OZON, Yandex Market, GetCourse, Yandex Direct, VK Ads, Yandex Metrika, Bitri
 
 ### Полезные ссылки:
 - Подробная статья: http://directprobi.ru/blogs/dannye-api-v-clickhouse-na-python-docker-connectors-wb-ozon-yandex/
+- Команды для работы с Docker: https://github.com/morinad/morin/blob/main/DOCKER.md
 - Основное видео с демонстрацией: https://youtu.be/OHwtIrQyF68
 - Ответы на вопросы: https://youtu.be/sK4mHmAbu4A
 - Все полезные файлы на Boosty: https://boosty.to/morinad/posts/ae00106e-4e29-4010-9aff-433d28b620f8?share=post_link
