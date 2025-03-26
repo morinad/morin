@@ -118,6 +118,19 @@ class Common:
         tr = tr.strip().replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower()
         return  tr
 
+    def tuple_none_change(self,my_tuple):
+        my_list = list(my_tuple)
+        counter = 1
+        for i in range(len(my_list)):
+            if my_list[i] is None:
+                my_list[i] = f'None{counter}'
+                counter += 1
+            else:
+                my_list[i] = my_list[i].replace('№','nomer').replace('%','percent').replace('/','slash').replace('\\','slash').replace('(','').replace(')','')
+        new_tuple = tuple(my_list)
+        return new_tuple
+
+
     def replace_keys_in_data(self, dictionaries_list):
         updated_list = []
         for dictionary in dictionaries_list:
