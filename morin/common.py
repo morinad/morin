@@ -115,8 +115,19 @@ class Common:
 
     def transliterate_key(self, key):
         tr = translit(key, 'ru', reversed=True)
-        tr = tr.strip().replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower()
+        tr = tr.strip().replace('%','').replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower().strip()
         return  tr
+
+    def transliterate_dict_keys_in_list(self, dictionaries_list):
+        updated_list = []
+        for dictionary in dictionaries_list:
+            updated_dict = {}
+            for key, value in dictionary.items():
+                new_key = self.transliterate_key(key)
+                updated_dict[new_key] = value
+            updated_list.append(updated_dict)
+        return updated_list
+
 
     def tuple_none_change(self,my_tuple):
         my_list = list(my_tuple)

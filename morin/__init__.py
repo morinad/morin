@@ -9,5 +9,6 @@ from .vk_by_date import VKbyDate
 try:
     from .alfacrm_by_date import ALFAbyDate
     from .yandex_disk_by_page import DISKbyPage
+    from .ozon_an_by_date import OZONANbyDate
 except:
     pass

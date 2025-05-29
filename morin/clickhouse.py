@@ -75,12 +75,22 @@ class Clickhouse:
         client.command(f"""ALTER TABLE {table_name} RENAME COLUMN test2 TO {column_name};""")
 
     # датафрейм, название таблицы -> вставка данных
-    def ch_insert(self, df, to_table):
+    import numpy as np
+
+
+
+    def ch_insert(self, df, to_table,chunk_size=20000):
         try:
             data_tuples = [tuple(x) for x in df.to_numpy()]
             client = clickhouse_connect.get_client(host=self.host, port=self.port, username=self.username,
                                                    password=self.password, database=self.database)
-            client.insert(to_table, data_tuples, column_names=df.columns.tolist())
+
+            for i in range(0, len(df), chunk_size):
+                chunk = df.iloc[i:i + chunk_size]
+                data_tuples = [tuple(x) for x in chunk.to_numpy()]
+                client.insert(to_table, data_tuples, column_names=chunk.columns.tolist())
+                time.sleep(1)
+
             message =f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {to_table}. Результат: данные вставлены в CH!'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             optimize_table = f"OPTIMIZE TABLE {to_table} FINAL"

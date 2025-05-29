@@ -6,6 +6,7 @@ from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
 import os
+import csv
 from dateutil import parser
 import time
 import hashlib
@@ -44,7 +45,7 @@ class OZONbyDate:
                 'report_name': 'transactions',
                 'upload_table': 'transactions',
                 'func_name': self.get_transactions,
-                'uniq_columns': 'operation_date, operation_id',
+                'uniq_columns': 'operation_date,operation_id',
                 'partitions': 'operation_date',
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
@@ -61,6 +62,32 @@ class OZONbyDate:
                 'partitions': 'warehouse_name',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 30
+            },
+            'stocks_sku': {
+                'platform': 'ozon',
+                'report_name': 'stocks_sku',
+                'upload_table': 'stocks_sku',
+                'func_name': self.get_stocks_sku,
+                'uniq_columns': 'sku',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 30
+            },
+            'stocks_sku_history': {
+                'platform': 'ozon',
+                'report_name': 'stocks_sku_history',
+                'upload_table': 'stocks_sku_history',
+                'func_name': self.get_stocks_sku,
+                'uniq_columns': 'sku',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 30
@@ -104,6 +131,19 @@ class OZONbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 30
             },
+            'returns_days': {
+                'platform': 'ozon',
+                'report_name': 'returns_days',
+                'upload_table': 'returns_days',
+                'func_name': self.get_returns,
+                'uniq_columns': 'id,company_id,order_id,logistic_return_date',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 30
+            },
             'realization': {
                 'platform': 'ozon',
                 'report_name': 'realization',
@@ -126,6 +166,19 @@ class OZONbyDate:
                 'partitions': '',
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2,Friday'
+                'delay': 30
+            },
+            'postings_fbs_rep': {
+                'platform': 'ozon',
+                'report_name': 'postings_fbs_rep',
+                'upload_table': 'postings_fbs_rep',
+                'func_name': self.get_postings_fbs_report,
+                'uniq_columns': 'load_date',
+                'partitions': 'load_date',
+                'merge_type': 'MergeTree', # тут надо выбрать схему обновления
+                'refresh_type': 'delete_date',
                 'history': True,
                 'frequency': 'daily',  # '2,Friday'
                 'delay': 30
@@ -158,6 +211,199 @@ class OZONbyDate:
             },
         }
 
+    def create_postings_report(self, date, report_type):
+        try:
+            url = "https://api-seller.ozon.ru/v1/report/postings/create"
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "filter": {
+                    "processed_at_from": f"{date}T00:00:00.000Z",
+                    "processed_at_to": f"{date}T23:59:59.999Z",
+                    "delivery_schema": [report_type]
+                },
+                "language": "RU"
+            }
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                result = response.json()
+                report_code = result['result']['code']
+                message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: create_postings_report. Результат: ОК'
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
+                return report_code
+            else:
+                response.raise_for_status()
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: create_postings_report. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def create_products_report(self):
+        try:
+            url = "https://api-seller.ozon.ru/v1/report/products/create"
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "language": "RU",
+                "visibility": "ALL"
+                }
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                result = response.json()
+                report_code = result['result']['code']
+                message = f'Платформа: OZON. Имя: {self.add_name}. Функция: create_products_report. Результат: ОК'
+                self.common.log_func(self.bot_token, self.chat_list, message, 1)
+                return report_code
+            else:
+                response.raise_for_status()
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Функция: create_products_report. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return e
+
+
+    def get_report_info(self, report_code):
+        try:
+            url = "https://api-seller.ozon.ru/v1/report/info"
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "code": report_code
+            }
+            response = requests.post(url, headers=headers, data=json.dumps(payload))
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                result = response.json()
+                return result
+            else:
+                response.raise_for_status()
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Функция: get_report_info. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_ozon_stocks(self, skus):
+        try:
+            url = "https://api-seller.ozon.ru/v1/analytics/stocks"
+            headers = {
+                "Content-Type": "application/json",
+                "Client-Id": self.clientid,
+                "Api-Key": self.token
+            }
+            batch_size = 100
+            all_results = []
+            for i in range(0, len(skus), batch_size):
+                batch = skus[i:i + batch_size]
+                batch_str = [str(x) for x in batch if x!=0 and x!='0']
+                if batch_str:
+                    payload = {"skus": batch_str}
+                    response = requests.post(url, headers=headers, json=payload)
+                    code = response.status_code
+                    if code == 429:
+                        self.err429 = True
+                    if code == 200:
+                        data = response.json()
+                        items = data.get("items", [])
+                        all_results.extend(items)
+                    else:
+                        response.raise_for_status()
+                    time.sleep(2)
+            message = f'Платформа: OZON. Имя: {self.add_name}. Функция: get_ozon_stocks. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return  all_results
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Функция: get_ozon_stocks. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_all_skus(self, data_list):
+        try:
+            sku_list = []
+            for k in data_list:
+                try:
+                    sku_list.append(k['SKU'])
+                except:
+                    pass
+            return sku_list
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Функция: get_all_skus. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def csv_to_dict_list(self,url):
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            csv_content = StringIO(response.text)
+            csv_reader = csv.reader(csv_content, delimiter=';')
+            headers = next(csv_reader, None)
+            result = [dict(zip(headers, row)) for row in csv_reader if row]
+            if not headers  or not result:
+                message = f'Платформа: OZON. Имя: {self.add_name}. Функция: csv_to_dict_list. ПУСТОЙ ОТЧЁТ.'
+                self.common.log_func(self.bot_token, self.chat_list, message, 2)
+            return result
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Функция: csv_to_dict_list. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_postings_fbs_report(self, date):
+        try:
+            new_report = self.create_postings_report(date,'fbs')
+            for k in range(20):
+                time.sleep(10)
+                get_link = self.get_report_info(new_report)
+                if get_link['result']['status'] == 'success':
+                    data = self.common.transliterate_dict_keys_in_list(self.csv_to_dict_list(get_link['result']['file']))
+                    for elem in data:
+                        elem['load_date'] = date
+                    return data
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {date}. Функция: get_postings_fbs_report. Результат: ОК.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {date}. Функция: get_postings_fbs_report. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def get_stocks_sku(self, date=''):
+        try:
+            new_report = self.create_products_report()
+            for k in range(50):
+                time.sleep(10)
+                get_link = self.get_report_info(new_report)
+                if get_link['result']['status'] == 'success':
+                    data = self.csv_to_dict_list(get_link['result']['file'])
+                    skus = self.get_all_skus(data)
+                    result = self.get_ozon_stocks(skus)
+                    for elem in result:
+                        elem['load_date'] = date
+                    return result
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {date}. Функция: get_stocks_sku. Результат: ОК.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {date}. Функция: get_stocks_sku. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     def get_transaction_page_count(self, date):
         try:
@@ -340,6 +586,53 @@ class OZONbyDate:
             return all_returns  # Возвращаем итоговый список из 'returns'
         except Exception as e:
             message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_returns. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_returns(self, date):
+        try:
+            url = "https://api-seller.ozon.ru/v1/returns/list"
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            limit = 500  # Можно задать желаемый лимит записей на один запрос
+            last_id = 0  # Инициализируем last_id с начальным значением 0
+            all_returns = []  # Список для хранения всех возвратов
+            while True:
+                payload = {
+                    "filter": {
+                        "logistic_return_date":
+                            {                            "time_from": f"{date}T00:00:00Z",
+                            "time_to": f"{date}T23:59:59Z"                        }
+                    },
+                    "last_id": last_id,
+                    "limit": limit
+                }
+                response = requests.post(url, headers=headers, data=json.dumps(payload))
+                code = response.status_code
+                if code == 429:
+                    self.err429 = True
+                if code == 200:
+                    result = response.json()
+                    returns = result.get('returns', [])
+                    if not returns:
+                        break
+                    all_returns.extend(returns)  # Добавляем все элементы 'returns' в общий список
+                    if len(returns) < limit:
+                        break
+                    last_id = int(returns[-1]['id'])
+                else:
+                    response.raise_for_status()
+            all_returns = self.common.spread_table(self.common.spread_table(all_returns))
+            for dict in all_returns:
+                dict['logistic_return_date'] = date
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_returns. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return all_returns  # Возвращаем итоговый список из 'returns'
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_returns. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 

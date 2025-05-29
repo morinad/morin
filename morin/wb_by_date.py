@@ -31,6 +31,8 @@ class WBbyDate:
         self.add_name = self.common.transliterate_key(add_name)
         self.now = datetime.now()
         self.today = datetime.now().date()
+        self.yesterday = self.today - timedelta(days=1)
+        self.yesterday_str = self.yesterday.strftime("%Y-%m-%d")
         self.start = start
         self.reports = reports
         self.backfill_days = backfill_days
@@ -95,6 +97,19 @@ class WBbyDate:
                 'upload_table': 'incomes',
                 'func_name': self.get_incomes,
                 'uniq_columns': 'incomeId,barcode',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
+            'excise': {
+                'platform': 'wb',
+                'report_name': 'excise',
+                'upload_table': 'excise',
+                'func_name': self.get_excise,
+                'uniq_columns': 'fiscal_dt,nm_id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
@@ -483,6 +498,31 @@ class WBbyDate:
             message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
+
+    def get_excise(self, date):
+        try:
+            url = 'https://seller-analytics-api.wildberries.ru/api/v1/analytics/excise-report'
+            headers = {'Authorization': f'{self.token}'  , "Content-Type" : "application/json"}
+            jsondata = json.dumps({}, ensure_ascii=False).encode("utf8")
+            params = {                'dateFrom': self.start,
+                'dateTo': self.yesterday_str            }
+            response = requests.post(url, headers=headers, params=params,data = jsondata)
+            print(response.json())
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                final_result = response.json()['response']['data']
+            else:
+                response.raise_for_status()
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_excise. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_excise. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
 
     def get_sales_changes(self, date):
         try:
