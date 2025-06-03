@@ -118,6 +118,19 @@ class OZONbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 30
             },
+            'products_info': {
+                'platform': 'ozon',
+                'report_name': 'products_info',
+                'upload_table': 'products_info',
+                'func_name': self.get_all_products_info,
+                'uniq_columns': 'id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 30
+            },
             'returns': {
                 'platform': 'ozon',
                 'report_name': 'returns',
@@ -546,6 +559,59 @@ class OZONbyDate:
             return all_items
         except Exception as e:
             message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_products. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_all_products_info(self, date=''):
+        try:
+            url = "https://api-seller.ozon.ru/v3/product/list"
+            url2 = "https://api-seller.ozon.ru/v3/product/info/list"
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            limit = 1000
+            last_id = ""  # Инициализируем last_id пустым значением для первого запроса
+            all_items = []  # Список для хранения всех продуктов
+            while True:
+                payload = {
+                    "last_id": last_id,
+                    "limit": limit,
+                    "filter" : {}
+                }
+                response = requests.post(url, headers=headers, data=json.dumps(payload))
+                code = response.status_code
+                if code == 429:
+                    self.err429 = True
+                if code == 200:
+                    result = response.json().get('result', {})
+                    items = result.get('items', [])
+                    if not items:
+                        break
+                    product_ids = []
+                    for item in items:
+                        product_ids.append(item['product_id'])
+                    payload2 = {"product_id" : product_ids}
+                    response2 = requests.post(url2, headers=headers, data=json.dumps(payload2))
+                    code2 = response2.status_code
+                    if code2 == 429:
+                        self.err429 = True
+                    if code2 == 200:
+                        items2 = response2.json().get('items', [])
+                        if not items2:
+                            break
+                    all_items.extend(items2)
+                    if len(items) < limit:
+                        break
+                    last_id = result.get('last_id', "")
+                else:
+                    response.raise_for_status()
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_products_info. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return self.common.spread_table(self.common.spread_table(all_items))
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_products_info. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
