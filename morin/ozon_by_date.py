@@ -170,6 +170,19 @@ class OZONbyDate:
                 'frequency': '6',  # '2,Friday'
                 'delay': 30
             },
+            'realization_posting': {
+                'platform': 'ozon',
+                'report_name': 'realization_posting',
+                'upload_table': 'realization_posting',
+                'func_name': self.get_realization_posting,
+                'uniq_columns': 'year_month,row_number',
+                'partitions': 'year_month',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': '6',  # '2,Friday'
+                'delay': 30
+            },
             'postings_fbo': {
                 'platform': 'ozon',
                 'report_name': 'postings_fbo',
@@ -222,6 +235,19 @@ class OZONbyDate:
                 'frequency': '1,16',  # '2,Friday'
                 'delay': 30
             },
+            'products_buyout': {
+            'platform': 'ozon',
+            'report_name': 'products_buyout',
+            'upload_table': 'products_buyout',
+            'func_name': self.get_products_buyout,
+            'uniq_columns': 'offer_id,sku,posting_number',
+            'partitions': '',
+            'merge_type': 'ReplacingMergeTree(timeStamp)',
+            'refresh_type': 'nothing',
+            'history': True,
+            'frequency': 'daily',  # '2,Friday'
+            'delay': 30
+        },
         }
 
     def create_postings_report(self, date, report_type):
@@ -338,7 +364,7 @@ class OZONbyDate:
                         all_results.extend(items)
                     else:
                         response.raise_for_status()
-                    time.sleep(2)
+                    time.sleep(40)
             message = f'Платформа: OZON. Имя: {self.add_name}. Функция: get_ozon_stocks. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return  all_results
@@ -402,7 +428,7 @@ class OZONbyDate:
         try:
             new_report = self.create_products_report()
             for k in range(50):
-                time.sleep(10)
+                time.sleep(40)
                 get_link = self.get_report_info(new_report)
                 if get_link['result']['status'] == 'success':
                     data = self.csv_to_dict_list(get_link['result']['file'])
@@ -742,6 +768,44 @@ class OZONbyDate:
             return message
 
 
+    def get_realization_posting(self, date):
+        try:
+            real_date = datetime.strptime(date, "%Y-%m-%d")
+            last_month_date = real_date - relativedelta(months=1)
+            previous_month = last_month_date.month
+            previous_year = last_month_date.year
+            yyyy_mm = f"{previous_year}-{str(previous_month).zfill(2)}-01"
+            final_data = []
+            data = {
+                "month": previous_month,
+                "year": previous_year
+            }
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            url = "https://api-seller.ozon.ru/v1/finance/realization/posting"
+            response = requests.post(url, json=data, headers=headers)
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                result = response.json().get('rows', [])
+                for row in result:
+                    row['year_month'] = yyyy_mm
+                    final_data.append(row)
+                final_result = self.common.spread_table(final_data)
+            else:
+                response.raise_for_status()
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_realization_posting. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_realization_posting. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
     def get_postings_fbo(self, date):
         try:
             url = "https://api-seller.ozon.ru/v2/posting/fbo/list"
@@ -916,6 +980,32 @@ class OZONbyDate:
             return self.common.spread_table(all)
         except Exception as e:
             message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_finance_cashflow. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_products_buyout(self, date):
+        try:
+            data = {"date_from": date, "date_to": date}
+            headers = {
+                "Client-Id": self.clientid,
+                "Api-Key": self.token,
+                "Content-Type": "application/json"
+            }
+            url = "https://api-seller.ozon.ru/v1/finance/products/buyout"
+            response = requests.post(url, json=data, headers=headers)
+            code = response.status_code
+            if code == 429:
+                self.err429 = True
+            if code == 200:
+                result = response.json().get('products', [])
+                final_result = result
+            else:
+                response.raise_for_status()
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {date}. Функция: get_products_buyout. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            message = f'Платформа: OZON. Имя: {self.add_name}. Дата: {date}. Функция: get_products_buyout. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 

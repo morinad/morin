@@ -10,6 +10,9 @@ import time
 import hashlib
 from io import StringIO
 import json
+import zipfile
+import io
+import csv
 
 
 class MRKTbyDate:
@@ -34,6 +37,8 @@ class MRKTbyDate:
         self.start = start
         self.reports = reports
         self.backfill_days = backfill_days
+        self.yesterday = self.today - timedelta(days=1)
+        self.yesterday_str = self.yesterday.strftime("%Y-%m-%d")
         self.platform = 'mrkt'
 
         self.err429 = False
@@ -77,6 +82,32 @@ class MRKTbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 20
             },
+            'price_report': {
+                'platform': 'mrkt',
+                'report_name': 'price_report',
+                'upload_table': 'price_report',
+                'func_name': self.get_price_report,
+                'uniq_columns': 'first_date,file_name',
+                'partitions': 'first_date',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_date',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 20
+            },
+            'orders_report': {
+                'platform': 'mrkt',
+                'report_name': 'orders_report',
+                'upload_table': 'orders_report',
+                'func_name': self.get_orders_report,
+                'uniq_columns': 'first_date,file_name',
+                'partitions': 'first_date',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_date',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 20
+            },
         }
 
     def get_stocks_data(self, campaign_id, token, next_page_token=None):
@@ -103,7 +134,6 @@ class MRKTbyDate:
             for wh in warehouses:
                 wh_id = wh.get("warehouseId")
                 offers = wh.get("offers", [])
-
                 for o in offers:
                     stock = o.get("stocks", None)
                     updatedAt = o.get("updatedAt", None)
@@ -232,6 +262,148 @@ class MRKTbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
+
+    def generate_price_report(self, year: str, month: str):
+        try:
+            url = "https://api.partner.market.yandex.ru/reports/united-marketplace-services/generate"
+            headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+            params = {
+                "format": "CSV",
+                "language": "EN"
+            }
+            payload = {
+            "businessId": self.clientid,
+            "monthFrom": month,
+            "monthTo": month,
+            "yearFrom": year,
+            "yearTo": year
+        }
+            response = requests.post(url, headers=headers, json=payload, params=params)
+            code = response.status_code
+            if code != 200:
+                response.raise_for_status()
+            result = response.json()
+            report_id = result["result"].get("reportId")
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(year)}-{str(month)}. Функция: generate_price_report. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return report_id
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(year)}-{str(month)}. Функция: generate_price_report. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def generate_orders_report(self, date1: str, date2: str):
+        try:
+            url = "https://api.partner.market.yandex.ru/reports/united-orders/generate"
+            headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+            params = {
+                "format": "CSV",
+                "language": "EN"
+            }
+            payload = {
+            "businessId": self.clientid,
+            "dateFrom": date1,
+            "dateTo": date2
+        }
+            response = requests.post(url, headers=headers, json=payload, params=params)
+            code = response.status_code
+            if code != 200:
+                response.raise_for_status()
+            result = response.json()
+            report_id = result["result"].get("reportId")
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(date1)}-{str(date2)}. Функция: generate_orders_report. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return report_id
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(date1)}-{str(date2)}. Функция: generate_orders_report. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def check_report_status(self, report_id: str):
+        try:
+            url = f"https://api.partner.market.yandex.ru/reports/info/{report_id}"
+            headers = {
+                "Authorization": f"Bearer {self.token}",
+                "Content-Type": "application/json"
+            }
+            response = requests.get(url, headers=headers)
+            if response.status_code != 200:
+                response.raise_for_status()
+            result = response.json()
+            file_url = result["result"].get("file")
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Отчёт: {str(report_id)}. Функция: check_report_status. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return file_url
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(report_id)}. Функция: check_report_status. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def process_report_files(self, file_url: str):
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.token}"
+            }
+            all_rows = []
+            response = requests.get(file_url, headers=headers)
+            if response.status_code != 200:
+                response.raise_for_status()
+            with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
+                for file_name in zip_file.namelist():
+                    if file_name.endswith('.csv'):
+                        with zip_file.open(file_name) as csv_file:
+                            csv_content = csv_file.read().decode('utf-8')
+                            csv_reader = csv.DictReader(io.StringIO(csv_content))
+                            for row in csv_reader:
+                                row['file_name'] = file_name.replace('.csv','')
+                                row['first_date'] = self.common.get_month_start(self.yesterday_str)
+                                all_rows.append(dict(row))
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Функция: process_report_files. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return self.common.transliterate_dict_keys_in_list(all_rows)
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Функция: process_report_files. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def get_price_report(self, date):
+        try:
+            first_date = self.common.get_month_start(self.yesterday_str)
+            year = first_date.split('-')[0]
+            month = first_date.split('-')[1]
+            rep = self.generate_price_report(year, month)
+            for att in range(50):
+                time.sleep(10)
+                rep_url = self.check_report_status(rep)
+                if 'http' in rep_url and rep_url:
+                    all_rows = self.process_report_files(rep_url)
+                    break
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_price_report. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return all_rows
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_price_report. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_orders_report(self, date):
+        try:
+            first_date = self.common.get_month_start(self.yesterday_str)
+            rep = self.generate_orders_report(first_date, self.yesterday_str)
+            for att in range(50):
+                time.sleep(10)
+                rep_url = self.check_report_status(rep)
+                if 'http' in rep_url and rep_url:
+                    all_rows = self.process_report_files(rep_url)
+                    break
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders_report. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return all_rows
+        except Exception as e:
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders_report. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
 
     # тип отчёта, дата -> данные в CH
     def collecting_manager(self):

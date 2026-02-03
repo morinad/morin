@@ -10,5 +10,6 @@ try:
     from .alfacrm_by_date import ALFAbyDate
     from .yandex_disk_by_page import DISKbyPage
     from .ozon_an_by_date import OZONANbyDate
+    from .mskld_by_date import MSKLDbyDate
 except:
     pass

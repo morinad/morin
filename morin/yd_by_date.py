@@ -208,8 +208,11 @@ class YDbyDate:
                     }}
             jsonBody = json.dumps(body, ensure_ascii=False).encode('utf8')
             response = requests.post(ads_url, data=jsonBody, headers=headers)
-            ads_data = response.json()
-            return ads_data['result']['Ads']
+            ads_data = response.json()['result']
+            if not ads_data:
+                return    []
+            else:
+                return ads_data['Ads']
         except Exception as e:
             message = f'Платформа: YD. Имя: {self.add_name}. Функция: get_ads. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
@@ -229,7 +232,8 @@ class YDbyDate:
                     for k in range(10):
                         ads = self.get_ads(camp_id, offset)
                         for row in ads:
-                            final_list.append({'Date': datestr,'CampaignName': camp['Name'], 'CampaignId': camp['Id'], 'AdId': row['Id'], 'Title': row['TextAd']['Title'],'Title2': row['TextAd']['Title2'], 'Text': row['TextAd']['Text'], 'Href': row['TextAd']['Href'] })
+                            text_ad = row.get('TextAd', {})
+                            final_list.append({'Date': datestr,'CampaignName': camp['Name'], 'CampaignId': camp['Id'], 'AdId': row['Id'], 'Title': text_ad.get('Title', ''),'Title2': text_ad.get('Title2', ''), 'Text': text_ad.get('Text', ''), 'Href': text_ad.get('Href', '')})
                         if len(ads)<10000:
                             break
                         offset += 10000

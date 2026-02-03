@@ -94,10 +94,22 @@ class OZONreklama:
                 campaigns = response.json()['list']
                 df = pd.json_normalize(campaigns)
                 pd.set_option('display.max_columns', None)
-                df.rename(columns={'autopilot.maxBid': 'autopilot_maxBid'}, inplace=True)
-                df.rename(columns={'autopilot.categoryId': 'autopilot_categoryId'}, inplace=True)
-                df.rename(columns={'autopilot.filters': 'autopilot_filters'}, inplace=True)
-                df.rename(columns={'autopilot.skuAddMode': 'autopilot_skuAddMode'}, inplace=True)
+                try:
+                    df.rename(columns={'autopilot.maxBid': 'autopilot_maxBid'}, inplace=True)
+                except:
+                    pass
+                try:
+                    df.rename(columns={'autopilot.categoryId': 'autopilot_categoryId'}, inplace=True)
+                except:
+                    pass
+                try:
+                    df.rename(columns={'autopilot.filters': 'autopilot_filters'}, inplace=True)
+                except:
+                    pass
+                try:
+                    df.rename(columns={'autopilot.skuAddMode': 'autopilot_skuAddMode'}, inplace=True)
+                except:
+                    pass
                 df['createdAt'] = pd.to_datetime(df['createdAt'], errors='coerce')
                 df['updatedAt'] = pd.to_datetime(df['updatedAt'], errors='coerce')
                 df['timeStamp'] = self.now
@@ -107,19 +119,39 @@ class OZONreklama:
                 df['fromDate'].fillna(pd.Timestamp.today().normalize(), inplace=True)
                 df['id'] = df['id'].astype('int64')
                 df['dailyBudget'] = df['dailyBudget'].astype('int64')
-                df['autopilot_maxBid'] = df['autopilot_maxBid'].astype('int64')
-                df['autopilot_categoryId'] = df['autopilot_categoryId'].astype('int64')
-                df['weeklyBudget'] = df['weeklyBudget'].astype('int64')
-                df['productAutopilotStrategy'] = df['productAutopilotStrategy'].astype(str)
-                df['budget'] = df['budget'].astype('int64')
-                df['placement'] = df['placement'].astype('str')
-                df['autopilot_filters'] = df['autopilot_filters'].astype('str')
+                try:
+                    df['autopilot_maxBid'] = df['autopilot_maxBid'].astype('int64')
+                except:
+                    pass
+                try:
+                    df['autopilot_categoryId'] = df['autopilot_categoryId'].astype('int64')
+                except:
+                    pass
+                try:
+                    df['weeklyBudget'] = df['weeklyBudget'].astype('int64')
+                except:
+                    pass
+                try:
+                    df['productAutopilotStrategy'] = df['productAutopilotStrategy'].astype(str)
+                except:
+                    pass
+                try:
+                    df['budget'] = df['budget'].astype('int64')
+                except:
+                    pass
+                try:
+                    df['placement'] = df['placement'].astype('str')
+                except:
+                    pass
+                try:
+                    df['autopilot_filters'] = df['autopilot_filters'].astype('str')
+                except:
+                    pass
                 required_columns = ['id', 'title', 'state', 'advObjectType', 'fromDate', 'toDate',
                         'dailyBudget', 'placement', 'budget', 'createdAt', 'updatedAt',
                         'productCampaignMode', 'productAutopilotStrategy', 'PaymentType',
                         'expenseStrategy', 'weeklyBudget', 'budgetType', 'startWeekDay',
-                        'endWeekDay', 'autopilot_maxBid', 'autopilot_categoryId',
-                        'autopilot_skuAddMode', 'autopilot_filters', 'timeStamp']
+                        'endWeekDay',  'timeStamp']
                 df = df[required_columns]
                 self.ch_insert(df, f"ozon_ads_campaigns_{self.add_name}")
                 return response.status_code
@@ -132,23 +164,31 @@ class OZONreklama:
         pd.set_option('display.max_columns', None)
         csv_file = response_text.splitlines()
         sp_columns = ['orderDate', 'orderId', 'orderNum', 'ozonId', 'productOzonId', 'artikul', 'name', 'count', 'price', 'value', 'rate', 'cost', ]
-        sku_columns = ['sku', 'productName', 'productPrice', 'views', 'clicks', 'cost', 'orders', 'revenue',  'modelOrders', 'modelRevenue']
+        sku_columns = ['addDate','sku', 'productName', 'productPrice', 'views', 'clicks', 'cost',  'inBasket', 'sales','orders',  'modelOrders', 'modelSales', 'drr']
         banner_columns = ['banner', 'pageType', 'viewCond', 'platform', 'views', 'clicks', 'reach', 'cost']
         brand_shelf_columns = ['conditionType', 'viewCond', 'platform', 'views', 'clicks', 'reach', 'cost']
         sis_columns = ['pageType', 'views', 'clicks', 'cost', 'reach']
 
-        replace_dict = {'Название товара': 'productName', 'Цена товара, ₽': 'productPrice', 'Расход, ₽, с НДС': 'cost',
+        replace_dict = {'CTR (%)': 'ctr', 'Средняя стоимость клика, ₽': 'avgCostPerClick',
+                        'Расход за минусом бонусов, ₽, с НДС': 'costNoBonus', 'Дата добавления': 'addDate',
+                        'ДРР, %': 'drr',
+                        'Продажи с заказов модели, ₽': 'modelSales', 'Продажи, ₽': 'sales', 'В корзину': 'inBasket',
+                        'Название товара': 'productName', 'Цена товара, ₽': 'productPrice', 'Расход, ₽, с НДС': 'cost',
                         'Показы': 'views', 'Заказы': 'orders', 'Клики': 'clicks', 'Выручка, ₽': 'revenue',
                         'Заказы модели': 'modelOrders', 'Выручка с заказов модели, ₽': 'modelRevenue',
-                        'Тип страницы': 'pageType', 'Охват': 'reach', 'Тип условия': 'conditionType', 'Условие показа': 'viewCond',
-                        'Платформа': 'platform', 'Баннер': 'banner', 'Дата': 'orderDate', 'ID заказа': 'orderId', 'Номер заказа': 'orderNum',
-                        'Ozon ID': 'ozonId','Ozon ID продвигаемого товара': 'productOzonId', 'Артикул': 'artikul', 'Наименование': 'name',
-                        'Количество': 'count', 'Цена продажи': 'price', 'Стоимость, ₽': 'value', 'Ставка, ₽': 'rate', 'Расход, ₽': 'cost'}
+                        'Тип страницы': 'pageType', 'Охват': 'reach', 'Тип условия': 'conditionType',
+                        'Условие показа': 'viewCond',
+                        'Платформа': 'platform', 'Баннер': 'banner', 'Дата': 'orderDate', 'ID заказа': 'orderId',
+                        'Номер заказа': 'orderNum',
+                        'Ozon ID': 'ozonId', 'Ozon ID продвигаемого товара': 'productOzonId', 'Артикул': 'artikul',
+                        'Наименование': 'name',
+                        'Количество': 'count', 'Цена продажи': 'price', 'Стоимость, ₽': 'value', 'Ставка, ₽': 'rate',
+                        'Расход, ₽': 'cost'}
 
-        int_list = ['views', 'clicks', 'orders', 'modelOrders', 'reach', 'count']
-        float_list = ['cost', 'revenue', 'modelRevenue', 'productPrice', 'price', 'value', 'rate']
-        str_list = ['orderNum', 'orderDate', 'productName', 'pageType', 'conditionType', 'viewCond', 'platform', 'banner', 'orderId', 'ozonId', 'productOzonId', 'artikul', 'name']
-
+        int_list = [ 'inBasket', 'views', 'clicks', 'orders', 'modelOrders', 'reach', 'count']
+        float_list = ['sales', 'modelSales', 'drr', 'costNoBonus', 'cost', 'revenue', 'modelRevenue', 'productPrice', 'price', 'value', 'rate']
+        str_list = [ 'addDate','orderNum', 'orderDate', 'productName', 'pageType', 'conditionType', 'viewCond',
+                    'platform', 'banner', 'orderId', 'ozonId', 'productOzonId', 'artikul', 'name']
 
         add_to_table = "unknown"
         if len(csv_file)>1:
@@ -381,17 +421,20 @@ class OZONreklama:
         create_table_query_data_sku = f"""
         CREATE TABLE IF NOT EXISTS ozon_ads_data_sku_{self.add_name} (
             date Date,
+            addDate String,
             id UInt64, 
             sku String,
             productName String, 
             productPrice Float, 
             views UInt64, 
-            clicks UInt64, 
+            clicks UInt64,
+            inBasket UInt64,
+            sales Float,
             cost Float,
             orders UInt64, 
-            revenue Float, 
             modelOrders UInt64, 
-            modelRevenue Float, 
+            modelSales Float,
+            drr Float,
             timeStamp DateTime
         ) ENGINE = ReplacingMergeTree(timeStamp)
         ORDER BY (date,id,sku)

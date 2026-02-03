@@ -169,6 +169,19 @@ class WBbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 60
             },
+            'cards': {
+                'platform': 'wb',
+                'report_name': 'cards',
+                'upload_table': 'cards',
+                'func_name': self.get_cards,
+                'uniq_columns': 'nmID',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 60
+            },
             'stocks_history': {
                 'platform': 'wb',
                 'report_name': 'stocks_history',
@@ -208,18 +221,44 @@ class WBbyDate:
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
                 'delay': 60
             },
-            'nmreport': {
+            'voronka_week': {
                 'platform': 'wb',
-                'report_name': 'nmreport',
-                'upload_table': 'nmreport',
-                'func_name': self.get_nmreport,
-                'uniq_columns': 'nmID,statistics_selectedPeriod_begin',
+                'report_name': 'voronka_week',
+                'upload_table': 'voronka_week',
+                'func_name': self.get_voronka_week,
+                'uniq_columns': 'nmId,date',
                 'partitions': '',
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
                 'frequency': 'daily',  # '2dayOfMonth,Friday'
-                'delay': 60
+                'delay': 23
+            },
+            'voronka_all': {
+                'platform': 'wb',
+                'report_name': 'voronka_all',
+                'upload_table': 'voronka_all',
+                'func_name': self.get_voronka_all,
+                'uniq_columns': 'product_nmId,statistic_selected_period_start',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 23
+            },
+            'feedbacks': {
+                'platform': 'wb',
+                'report_name': 'feedbacks',
+                'upload_table': 'feedbacks',
+                'func_name': self.get_feedbacks,
+                'uniq_columns': 'id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'delay': 10
             },
         }
 
@@ -594,43 +633,206 @@ class WBbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
-    def get_nmreport(self, date):
+    def get_voronka_week(self, date):
         try:
-            url = "https://seller-analytics-api.wildberries.ru/api/v2/nm-report/detail"
+            self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port,
+                                         self.username, self.password,
+                                         self.database, self.start, self.add_name, self.err429, self.backfill_days,
+                                         self.platform)
+            nm_list_raw = self.clickhouse.get_table_data(f'{self.platform}_cards_{self.add_name}', ' nmID ')
+            nm_list = [row['nmID'] for row in nm_list_raw] if nm_list_raw else []
+            final_list = self.common.get_chunks(nm_list,20)
+            url = "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products/history"
             headers = {
                 "Authorization": self.token,
                 "Content-Type": "application/json"
             }
-            page = 1
-            all_cards = []  # Хранилище для всех карточек товара
-            begin_date = f"{date} 00:00:00"
-            end_date = f"{date} 23:59:59"
-            while True:
+            all_cards = []
+            for chunk in final_list:
                 payload = {
-                    "period": {
-                        "begin": begin_date,
-                        "end": end_date
-                    },
-                    "page": page
-                }
+                        "selectedPeriod": {
+                            "start": f"{date}",
+                            "end": f"{date}"
+                        },
+                    "nmIds": chunk,
+                        "skipDeletedNm": True,
+                        "aggregationLevel": "day"
+                    }
                 response = requests.post(url, headers=headers, json=payload)
                 code = response.status_code
                 if code == 200:
-                    data = response.json().get('data', {})
-                    cards = data.get('cards', [])
-                    all_cards.extend(cards)  # Добавляем карточки на текущей странице
-                    is_next_page = data.get('isNextPage', False)
-                    if not is_next_page:
-                        break  # Если страниц больше нет, выходим из цикла
-                    page += 1  # Переходим на следующую страницу
-                    time.sleep(22)
+                    data = response.json()
+                    for card in data:
+                        if len(card['history']) == 0:
+                            pass
+                        elif len(card['history'])>1:
+                            response.raise_for_status()
+                        else:
+                            card_dict = card['product'] | card['history'][0]
+                            all_cards.append(card_dict)
                 else:
                     response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_nmreport. Результат: ОК'
+                time.sleep(23)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_voronka_week. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_cards)))
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_nmreport. Ошибка: {e}.'
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_voronka_week. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_voronka_all(self, date):
+        try:
+            url = "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products"
+            headers = {
+                "Authorization": self.token,
+                "Content-Type": "application/json"
+            }
+            offset = 0
+            limit = 1000
+            all_cards = []
+            while True:
+                payload = {
+                        "selectedPeriod": {
+                            "start": f"{date}",
+                            "end": f"{date}"
+                        },
+                        "skipDeletedNm": True,
+                    "limit" : limit,
+                    "offset" : offset
+                    }
+                response = requests.post(url, headers=headers, json=payload)
+
+                code = response.status_code
+                if code == 200:
+                    data = response.json()['data']['products']
+                    print(len(data))
+                    all_cards.extend(data)
+                    if len(data)<limit:
+                        break
+                    else:
+                        offset += limit
+                else:
+                    response.raise_for_status()
+                time.sleep(23)
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_voronka_all. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_cards)))
+        except Exception as e:
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_voronka_all. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def get_cards(self, date=''):
+        try:
+            url = "https://content-api.wildberries.ru/content/v2/get/cards/list"
+            headers = {
+                "Authorization": self.token,
+                "Content-Type": "application/json"
+            }
+
+            all_cards = []  # Хранилище для всех карточек товара
+            cursor = {"limit": 100}  # Начальный курсор
+
+            while True:
+                payload = {
+                    "settings": {
+                        "cursor": cursor,
+                        "filter": {
+                            "withPhoto": -1
+                        }
+                    }
+                }
+
+                response = requests.post(url, headers=headers, json=payload)
+                code = response.status_code
+
+                if code == 429:
+                    self.err429 = True
+                    time.sleep(60)  # Ждем минуту при превышении лимита
+                    continue
+
+                if code == 200:
+                    data = response.json()
+                    cards = data.get('cards', [])
+                    cursor_info = data.get('cursor', {})
+
+                    if not cards:  # Если карточек нет, выходим
+                        break
+
+                    all_cards.extend(cards)  # Добавляем карточки на текущей странице
+
+                    # Проверяем, есть ли еще данные
+                    total = cursor_info.get('total', 0)
+                    if total < 100:  # Если получили меньше лимита, это последняя страница
+                        break
+
+                    # Обновляем курсор для следующего запроса
+                    if 'updatedAt' in cursor_info and 'nmID' in cursor_info:
+                        cursor = {
+                            "limit": 100,
+                            "updatedAt": cursor_info['updatedAt'],
+                            "nmID": cursor_info['nmID']
+                        }
+                    else:
+                        break  # Если нет данных для курсора, выходим
+
+                    time.sleep(2)  # Пауза между запросами для соблюдения лимитов
+
+                else:
+                    response.raise_for_status()
+
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_cards. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return self.common.spread_table(self.common.spread_table(all_cards))
+
+        except Exception as e:
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_cards. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def get_chosen_feedbacks(self, date, answered):
+        try:
+            take = 5000
+            url = "https://feedbacks-api.wildberries.ru/api/v1/feedbacks"
+            headers = {"Authorization": self.token}
+            all_feedbacks = []
+            skip = 0
+            while True:
+                params = {'order': 'dateAsc', 'isAnswered': answered, 'take': str(take), 'skip': str(skip), "dateFrom": str(self.common.datetime_to_unixtime(date +' 00:00:00')), "dateTo": str(self.common.datetime_to_unixtime(date+ ' 23:59:59'))}
+                response = requests.get(url, headers=headers, params=params)
+                code = response.status_code
+                if code == 429:
+                    self.err429 = True
+                if code == 200:
+                    result = response.json()['data']['feedbacks']
+                    if len(result) == 0:
+                        break
+                    else:
+                        all_feedbacks.extend(result)
+                else:
+                    response.raise_for_status()
+                skip = skip+ take
+                time.sleep(2)
+            return all_feedbacks
+        except Exception as e:
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_chosen_feedbacks. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+
+    def get_feedbacks(self, date):
+        try:
+            all_feedbacks = []
+            all_feedbacks.extend(self.get_chosen_feedbacks(date, "true"))
+            all_feedbacks.extend(self.get_chosen_feedbacks(date, "false"))
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_feedbacks. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return self.common.spread_table(self.common.spread_table(all_feedbacks))
+        except Exception as e:
+            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_feedbacks. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 

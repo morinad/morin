@@ -398,7 +398,7 @@ class WBreklama:
                             except Exception as e:
                                 message = f'Платформа: WB_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Ошибка: {str(e)}'
                                 self.common.log_func(self.bot_token, self.chat_list, message, 3)
-                            time.sleep(61)
+                            time.sleep(90)
             except Exception as e:
                 message = f'Платформа: WB_ADS. Имя: {self.add_name}. Функция: wb_reklama. Ошибка: {e}.'
                 self.common.log_func(self.bot_token, self.chat_list, message, 3)

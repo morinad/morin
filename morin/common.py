@@ -26,50 +26,56 @@ class Common:
         self.now = datetime.now()
         self.today = datetime.now().date()
 
+    def running_in_airflow(self):
+        return any(k.startswith("AIRFLOW_") for k in os.environ.keys())
 
     def log_func(self, bot_token, chat_ids,message, value):
         try:
             print(message)
-            log_file_path = "/app/log.txt"
-            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-            if value >= self.value:
-                with open(log_file_path, "a") as log_file:
-                    log_file.write(message + "\n\n")
-            self.send_logs_clear(bot_token, chat_ids, message)
+            if not self.running_in_airflow():
+                log_dir = "/app/logs"
+                os.makedirs(log_dir, exist_ok=True)
+                log_file_path = os.path.join(log_dir, "log.txt")
+                if value >= self.value:
+                    with open(log_file_path, "a", encoding="utf-8") as log_file:
+                        log_file.write(message + "\n\n")
+                self.send_logs_clear(bot_token, chat_ids, message)
         except Exception as e:
             print(f'Ошибка log_func: {e}')
 
     def send_logs_clear(self,bot_token, chat_ids, message):
         try:
-            log_file_path = "/app/log.txt"
-            if not os.path.exists(log_file_path):
-                print("Файл лога не существует.")
-            with open(log_file_path, "r") as log_file:
-                content = log_file.read()
-            if len(content) > 1000:
-                self.message_text = content
-                self.send_logs(bot_token, chat_ids)
-                with open(log_file_path, "w") as log_file:
-                    log_file.write("")  # Очищаем файл
-                print("Файл очищен, длина содержимого превышала 1000 символов.")
-            return content
+            if not self.running_in_airflow():
+                log_file_path = "/app/logs/log.txt"
+                if not os.path.exists(log_file_path):
+                    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+                with open(log_file_path, "r") as log_file:
+                    content = log_file.read()
+                if len(content) > 1000:
+                    self.message_text = content
+                    self.send_logs(bot_token, chat_ids)
+                    with open(log_file_path, "w") as log_file:
+                        log_file.write("")  # Очищаем файл
+                    print("Файл очищен, длина содержимого превышала 1000 символов.")
+                return content
         except Exception as e:
             print(f'Ошибка send_logs_clear: {e}')
 
     def send_logs_clear_anyway(self,bot_token, chat_ids):
         try:
-            log_file_path = "/app/log.txt"
-            if not os.path.exists(log_file_path):
-                print("Файл лога не существует.")
-            with open(log_file_path, "r") as log_file:
-                content = log_file.read()
-            if len(content.strip()) > 0:
-                self.message_text = content.strip()
-                self.send_logs(bot_token, chat_ids)
-                with open(log_file_path, "w") as log_file:
-                    log_file.write("")  # Очищаем файл
-                print("Файл очищен, длина содержимого превышала 1000 символов.")
-            return content
+            if not self.running_in_airflow():
+                log_file_path = "/app/logs/log.txt"
+                if not os.path.exists(log_file_path):
+                    print("Файл лога не существует.")
+                with open(log_file_path, "r") as log_file:
+                    content = log_file.read()
+                if len(content.strip()) > 0:
+                    self.message_text = content.strip()
+                    self.send_logs(bot_token, chat_ids)
+                    with open(log_file_path, "w") as log_file:
+                        log_file.write("")  # Очищаем файл
+                    print("Файл очищен, длина содержимого превышала 1000 символов.")
+                return content
         except Exception as e:
             print(f'Ошибка send_logs_clear: {e}')
 
@@ -102,6 +108,21 @@ class Common:
         except Exception as e:
             print(f'Ошибка flip_date: {e}')
 
+    def datetime_to_unixtime(self, datetime_str):
+        # Парсим строку даты и времени в объект datetime
+        date_obj = datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+        # Преобразуем в Unix timestamp (в секундах)
+        timestamp = int(date_obj.timestamp())
+        return timestamp
+
+    def get_month_start(self, date_str: str):
+        try:
+            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+            month_start = date_obj.replace(day=1)
+            return month_start.strftime('%Y-%m-%d')
+        except Exception as e:
+            print(f'Ошибка get_month_start: {e}')
+
     def is_error(self, result):
         if isinstance(result, str):
             if 'Ошибка:' in result:
@@ -115,8 +136,8 @@ class Common:
 
     def transliterate_key(self, key):
         tr = translit(key, 'ru', reversed=True)
-        tr = tr.strip().replace('%','').replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower().strip()
-        return  tr
+        tr = tr.strip().replace('%','').replace(':','_').replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower().strip()
+        return tr
 
     def transliterate_dict_keys_in_list(self, dictionaries_list):
         updated_list = []
@@ -368,3 +389,12 @@ class Common:
                     row_dict[f'{key}'] = value
             result_list.append(row_dict)
         return result_list
+
+    def get_chunks(self, lst, n):
+        # Сразу превращаем всё в целые числа, чтобы не было 53182653.0
+        clean_lst = [int(x) for x in lst]
+        # Режем на куски и сразу упаковываем в итоговый список
+        result = []
+        for i in range(0, len(clean_lst), n):
+            result.append(clean_lst[i: i + n])
+        return result

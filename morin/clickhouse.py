@@ -10,6 +10,7 @@ import hashlib
 from io import StringIO
 import json
 import math
+import numpy as np
 
 class Clickhouse:
     def __init__(self,  bot_token:str, chat_list:str, message_type: str, host: str, port: str, username: str, password: str, database: str, start:str, add_name:str, err429:bool, backfill_days:int, platform:str):
@@ -75,10 +76,6 @@ class Clickhouse:
         client.command(f"""ALTER TABLE {table_name} RENAME COLUMN test2 TO {column_name};""")
 
     # датафрейм, название таблицы -> вставка данных
-    import numpy as np
-
-
-
     def ch_insert(self, df, to_table,chunk_size=20000):
         try:
             data_tuples = [tuple(x) for x in df.to_numpy()]
@@ -106,7 +103,7 @@ class Clickhouse:
     def ch_execute(self, expression):
         client = None
         try:
-            disp_exp = expression.strip()[:30] + '...'
+            disp_exp = expression.strip()[:60] + '...'
             client = clickhouse_connect.get_client(host=self.host, port=self.port, username=self.username, password=self.password, database=self.database)
             client.command(expression)
             message = f'Платформа: {self.platform}. Имя: {self.add_name}. Выражение {disp_exp} выполнено.'
@@ -150,6 +147,9 @@ class Clickhouse:
                     text_columns_set.add(f"{col[0].strip()}")
         except:
             pass
+        finally:
+            if client:
+                client.close()
         return text_columns_set
 
     # список словарей (данные)+уникальность+имятаблицы -> создание/изменение таблицы ch
@@ -212,7 +212,9 @@ class Clickhouse:
         except Exception as e:
             message = f'Платформа: {self.platform}. Имя: {self.add_name}. Функция: create_alter_ch. Ошибка подготовки данных: {e}'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
-
+        finally:
+            if client:
+                client.close()
 
 
     def get_missing_dates(self, table_name, report_name, start_date_str, include_today):
@@ -244,7 +246,31 @@ class Clickhouse:
             message = f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {table_name}. Функция: get_missing_dates. Ошибка: {e}'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
+        finally:
+            if client:
+                client.close()
 
+    def get_table_data(self, table_name, columns, condition=None):
+        try:
+            if isinstance(columns, list):
+                columns_str = ", ".join(columns)
+            else:
+                columns_str = columns
+            where = f'WHERE {condition}' if condition else ""
+            query = f"SELECT {columns_str} FROM {table_name} {where}"
+            client = clickhouse_connect.get_client(host=self.host, port=self.port, username=self.username, password=self.password, database=self.database)
+            result = client.query(query)
+            existing_values = [dict(zip(result.column_names, row)) for row in result.result_rows]
+            message = f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {table_name}. Функция: get_table_data. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return existing_values
+        except Exception as e:
+            message = f'Платформа: {self.platform}. Имя: {self.add_name}. Таблица: {table_name}. Функция: get_table_data. Ошибка: {e}'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return None
+        finally:
+            if client:
+                client.close()
 
 
     def upload_data(self, platform, report_name,upload_table, func_name, uniq_columns, partitions, merge_type, refresh_type, history, delay, date):
