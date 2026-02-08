@@ -13,5 +13,5 @@ setup(
     author='Александр Морин',
     author_email='y.director@yandex.ru',
     url='https://github.com/morinad/morin',
-    install_requires=['requests', 'clickhouse_connect', 'pandas', 'python-dateutil'],
+    install_requires=['requests', 'httpx', 'clickhouse_connect', 'pandas', 'python-dateutil'],
 )
