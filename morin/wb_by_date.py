@@ -1,7 +1,7 @@
 from .common import Common
 from .clickhouse import Clickhouse
 from .wb_reklama import WBreklama
-import requests
+from .base_client import BaseMarketplaceClient
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -10,7 +10,6 @@ from dateutil import parser
 import time
 import hashlib
 from io import StringIO
-import json
 
 
 class WBbyDate:
@@ -38,6 +37,15 @@ class WBbyDate:
         self.backfill_days = backfill_days
         self.platform = 'wb'
         self.err429 = False
+        self.api = BaseMarketplaceClient(
+            base_url='',
+            headers={"Authorization": self.token},
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
+        self.common.log_func(self.bot_token, self.chat_list, f'Платформа: WB. Имя: {self.add_name}. HTTP-клиент: httpx', 1)
         self.source_dict = {
             'realized': {
                 'platform': 'wb',
@@ -49,7 +57,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'Monday',  # '2dayOfMonth,Friday'
+                'frequency': 'Monday',
                 'delay': 60
             },
             'orders': {
@@ -62,7 +70,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'sbor_orders': {
@@ -75,7 +83,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
             'sbor_status': {
@@ -88,7 +96,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
             'incomes': {
@@ -101,7 +109,7 @@ class WBbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'excise': {
@@ -114,7 +122,7 @@ class WBbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'sales': {
@@ -127,7 +135,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'orders_changes': {
@@ -140,7 +148,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'sales_changes': {
@@ -153,7 +161,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'stocks': {
@@ -166,7 +174,7 @@ class WBbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'cards': {
@@ -179,7 +187,7 @@ class WBbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'stocks_history': {
@@ -192,7 +200,7 @@ class WBbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'adv_upd': {
@@ -205,7 +213,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 5
             },
             'paid_storage': {
@@ -218,7 +226,7 @@ class WBbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_date',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 60
             },
             'voronka_week': {
@@ -231,7 +239,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 23
             },
             'voronka_all': {
@@ -244,7 +252,7 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 23
             },
             'feedbacks': {
@@ -257,36 +265,35 @@ class WBbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
         }
 
+    def _log_ok(self, func_name, date=''):
+        message = f'Платформа: {self.platform.upper()}. Имя: {self.add_name}. Дата: {date}. Функция: {func_name}. Результат: ОК'
+        self.common.log_func(self.bot_token, self.chat_list, message, 1)
+
+    def _log_err(self, func_name, date='', error=''):
+        if hasattr(self, 'api') and hasattr(self.api, 'err429') and self.api.err429:
+            self.err429 = True
+        message = f'Платформа: {self.platform.upper()}. Имя: {self.add_name}. Дата: {date}. Функция: {func_name}. Ошибка: {error}.'
+        self.common.log_func(self.bot_token, self.chat_list, message, 3)
+        return message
+
     def get_adv_upd(self, date):
         try:
             url = "https://advert-api.wildberries.ru/adv/v1/upd"
-            headers = {"Authorization": self.token}
-            params = {"from": date, "to": date }
-            response = requests.get(url, headers=headers, params=params)
-            code = response.status_code
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                final_result = response.json()
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_adv_upd. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            params = {"from": date, "to": date}
+            final_result = self.api._request('GET', url, params=params)
+            self._log_ok('get_adv_upd', date)
             return final_result
         except Exception as e:
-                message = f'Платформа: WB. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_adv_upd. Ошибка: {e}.'
-                self.common.log_func(self.bot_token, self.chat_list, message, 3)
-                return message
+            return self._log_err('get_adv_upd', date, e)
 
     def get_sbor_status(self, date):
         try:
             url = "https://marketplace-api.wildberries.ru/api/v3/orders"
-            headers = {"Authorization": self.token}
             next = '0'
             final_result = []
             while True:
@@ -294,344 +301,176 @@ class WBbyDate:
                 params = {'limit': "1000", 'next': next,
                           "dateFrom": int(datetime.strptime( date+' 00:00:00', "%Y-%m-%d %H:%M:%S").timestamp()),
                           "dateTo" : int(datetime.strptime( date+' 23:59:59', "%Y-%m-%d %H:%M:%S").timestamp())}
-                response = requests.get(url, headers=headers, params=params)
-                code = response.status_code
-                if code == 429:
-                    self.err429 = True
-                if code == 200:
-                    next = str(response.json()['next'])
-                    orders = response.json()['orders']
-                    if len(orders)==0:
-                        break
-                    else:
-                        for i in orders:
-                            ids_to_collect.append(i['id'])
-                else:
-                    response.raise_for_status()
+                data = self.api._request('GET', url, params=params)
+                next = str(data['next'])
+                orders = data['orders']
+                if len(orders)==0:
+                    break
+                for i in orders:
+                    ids_to_collect.append(i['id'])
                 status_url = "https://marketplace-api.wildberries.ru/api/v3/orders/status"
-                status_headers = {"Authorization": self.token, 'Content-Type': 'application/json'}
-                payload = {"orders": ids_to_collect}
-                response = requests.post(status_url, headers=status_headers, json=payload)
-                code = response.status_code
-                if code == 429:
-                    self.err429 = True
-                if code == 200:
-                    data = response.json()['orders']
-                    final_result += data
-                else:
-                    response.raise_for_status()
+                status_data = self.api._request('POST', status_url, json={"orders": ids_to_collect})
+                final_result += status_data['orders']
                 if len(orders)<1000:
                     break
                 time.sleep(1)
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sbor_status. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            self._log_ok('get_sbor_status', date)
             return final_result
         except Exception as e:
-                message = f'Платформа: WB. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_sbor_status. Ошибка: {e}.'
-                self.common.log_func(self.bot_token, self.chat_list, message, 3)
-                return message
+            return self._log_err('get_sbor_status', date, e)
 
 
     def get_sbor(self, date):
         try:
             url = "https://marketplace-api.wildberries.ru/api/v3/orders"
-            headers = {"Authorization": self.token}
             next = '0'
             final_result = []
             while True:
                 params = {'limit': "1000", 'next': next,
                           "dateFrom": int(datetime.strptime( date+' 00:00:00', "%Y-%m-%d %H:%M:%S").timestamp()),
                           "dateTo" : int(datetime.strptime( date+' 23:59:59', "%Y-%m-%d %H:%M:%S").timestamp())}
-                response = requests.get(url, headers=headers, params=params)
-                code = response.status_code
-                if code == 429:
-                    self.err429 = True
-                if code == 200:
-                    orders = response.json()['orders']
-                    if len(orders)==0:
-                        break
-                    else:
-                        final_result += orders
-                else:
-                    response.raise_for_status()
-                next = str(response.json()['next'])
+                data = self.api._request('GET', url, params=params)
+                orders = data['orders']
+                if len(orders)==0:
+                    break
+                final_result += orders
+                next = str(data['next'])
                 if len(orders)<1000:
                     break
                 time.sleep(1)
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sbor. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            self._log_ok('get_sbor', date)
             return final_result
         except Exception as e:
-                message = f'Платформа: WB. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_sbor. Ошибка: {e}.'
-                self.common.log_func(self.bot_token, self.chat_list, message, 3)
-                return message
+            return self._log_err('get_sbor', date, e)
 
-    def create_ps_report(self, api_key, date1, date2):
+    def create_ps_report(self, date1, date2):
         try:
             url = "https://seller-analytics-api.wildberries.ru/api/v1/paid_storage"
-            headers = {"Authorization": api_key}
-            params = {"dateFrom": date1, "dateTo": date2, }
-            response = requests.get(url, headers=headers, params=params)
-            code = response.status_code
-            if code == 200:
-                return response.json()['data']['taskId']
-            else:
-                response.raise_for_status()
+            params = {"dateFrom": date1, "dateTo": date2}
+            data = self.api._request('GET', url, params=params)
+            return data['data']['taskId']
         except Exception as e:
-                message = f'Платформа: WB. Имя: {self.add_name}. Даты: {date1}-{date2}. Функция: create_ps_report. Ошибка: {e}.'
-                self.common.log_func(self.bot_token, self.chat_list, message, 3)
-                return message
+            return self._log_err('create_ps_report', f'{date1}-{date2}', e)
 
 
-    def ps_report_status(self, api_key, task_id):
+    def ps_report_status(self, task_id):
         try:
             url = f"https://seller-analytics-api.wildberries.ru/api/v1/paid_storage/tasks/{task_id}/status"
-            headers = {"Authorization": api_key}
-            response = requests.get(url, headers=headers)
-            code = response.status_code
-            if code == 200:
-                return response.json()['data']['status']
-            else:
-                response.raise_for_status()
+            data = self.api._request('GET', url)
+            return data['data']['status']
         except Exception as e:
-                message = f'Платформа: WB. Имя: {self.add_name}. Функция: ps_report_status. Ошибка: {e}.'
-                self.common.log_func(self.bot_token, self.chat_list, message, 1)
-                return message
+            return self._log_err('ps_report_status', '', e)
 
 
-    def get_ps_report(self, api_key, task_id):
+    def get_ps_report(self, task_id):
         try:
             url = f"https://seller-analytics-api.wildberries.ru/api/v1/paid_storage/tasks/{task_id}/download"
-            headers = {"Authorization": api_key}
-            response = requests.get(url, headers=headers)
-            code = response.status_code
-            if code == 200:
-                return response.json()
-            else:
-                response.raise_for_status()
+            data = self.api._request('GET', url)
+            return data
         except Exception as e:
-                message = f'Платформа: WB. Имя: {self.add_name}. Функция: get_ps_report. Ошибка: {e}.'
-                self.common.log_func(self.bot_token, self.chat_list, message, 3)
-                return message
+            return self._log_err('get_ps_report', '', e)
 
 
     def get_paid_storage(self, date):
         try:
-            task = self.create_ps_report(self.token, date, date)
+            task = self.create_ps_report(date, date)
             for t in range(20):
                 time.sleep(10)
-                if self.ps_report_status(self.token, task) =='done':
-                    message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_paid_storage. Результат: ОК'
-                    self.common.log_func(self.bot_token, self.chat_list, message, 1)
-                    return self.get_ps_report(self.token, task)
+                if self.ps_report_status(task) =='done':
+                    self._log_ok('get_paid_storage', date)
+                    return self.get_ps_report(task)
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_paid_storage. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_paid_storage', date, e)
 
 
-    # дата+токен -> список словарей с заказами (данные)
     def get_orders(self, date):
         try:
             date_rfc3339 = f"{date}T00:00:00.000Z"
             url = "https://statistics-api.wildberries.ru/api/v1/supplier/orders"
-            headers = {
-                "Authorization": self.token,
-            }
-            params = {
-                "dateFrom": date_rfc3339,
-                "flag": 1,  # Для получения всех заказов на указанную дату
-            }
-            response = requests.get(url, headers=headers, params=params)
-            code = response.status_code
-            print(code)
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                final_result = response.json()
-
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            params = {"dateFrom": date_rfc3339, "flag": 1}
+            final_result = self.api._request('GET', url, params=params)
+            self._log_ok('get_orders', date)
             return final_result
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_orders', date, e)
 
     def get_incomes(self, date=''):
         try:
             date_rfc3339 = f"{self.start}T00:00:00.000Z"
             url = "https://statistics-api.wildberries.ru/api/v1/supplier/incomes"
-            headers = {
-                "Authorization": self.token,
-            }
-            params = {
-                "dateFrom": date_rfc3339
-            }
-            response = requests.get(url, headers=headers, params=params, timeout=200)
-            code = response.status_code
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                json_data = response.json()
-                if not json_data or all(not item for item in json_data if isinstance(json_data, list)):
-                    raise ValueError("Получен пустой Json")
-                final_result = json_data
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_incomes. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            params = {"dateFrom": date_rfc3339}
+            json_data = self.api._request('GET', url, params=params, timeout=200)
+            if not json_data or all(not item for item in json_data if isinstance(json_data, list)):
+                raise ValueError("Получен пустой Json")
+            final_result = json_data
+            self._log_ok('get_incomes', date)
             return final_result
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_incomes. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_incomes', date, e)
 
     def get_orders_changes(self, date):
         try:
             date_rfc3339 = f"{date}T00:00:00.000Z"
             url = "https://statistics-api.wildberries.ru/api/v1/supplier/orders"
-            headers = {"Authorization": self.token}
             params = {"dateFrom": date_rfc3339}
-            response = requests.get(url, headers=headers, params=params)
-            code = response.status_code
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                final_result = response.json()
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders_changes. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            final_result = self.api._request('GET', url, params=params)
+            self._log_ok('get_orders_changes', date)
             return final_result
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_orders_changes. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_orders_changes', date, e)
 
-    # дата+токен -> список словарей с заказами (данные)
     def get_sales(self, date):
         try:
             url = 'https://statistics-api.wildberries.ru/api/v1/supplier/sales'
-            headers = {
-                'Authorization': f'Bearer {self.token}'
-            }
-            params = {
-                'dateFrom': date,
-                "flag": 1,
-            }
-            response = requests.get(url, headers=headers, params=params)
-            code = response.status_code
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                final_result = response.json()
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            params = {'dateFrom': date, "flag": 1}
+            final_result = self.api._request('GET', url, params=params, headers={'Authorization': f'Bearer {self.token}'})
+            self._log_ok('get_sales', date)
             return final_result
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_sales', date, e)
 
     def get_excise(self, date):
         try:
             url = 'https://seller-analytics-api.wildberries.ru/api/v1/analytics/excise-report'
-            headers = {'Authorization': f'{self.token}'  , "Content-Type" : "application/json"}
-            jsondata = json.dumps({}, ensure_ascii=False).encode("utf8")
-            params = {                'dateFrom': self.start,
-                'dateTo': self.yesterday_str            }
-            response = requests.post(url, headers=headers, params=params,data = jsondata)
-            print(response.json())
-            code = response.status_code
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                final_result = response.json()['response']['data']
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_excise. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            params = {'dateFrom': self.start, 'dateTo': self.yesterday_str}
+            data = self.api._request('POST', url, params=params, json={})
+            final_result = data['response']['data']
+            self._log_ok('get_excise', date)
             return final_result
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_excise. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_excise', date, e)
 
 
     def get_sales_changes(self, date):
         try:
             url = 'https://statistics-api.wildberries.ru/api/v1/supplier/sales'
-            headers = {'Authorization': f'Bearer {self.token}'}
             params = {'dateFrom': date}
-            response = requests.get(url, headers=headers, params=params)
-            code = response.status_code
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                final_result = response.json()
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales_changes. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            final_result = self.api._request('GET', url, params=params, headers={'Authorization': f'Bearer {self.token}'})
+            self._log_ok('get_sales_changes', date)
             return final_result
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sales_changes. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_sales_changes', date, e)
 
-    # дата+токен -> список словарей с заказами (данные)
     def get_realized(self, date):
         try:
             url = 'https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod'
-            headers = {'Authorization': f'Bearer {self.token}'}
             params = {'dateFrom': self.common.shift_date(date,7), 'dateTo': self.common.shift_date(date,1)}
-            response = requests.get(url, headers=headers, params=params)
-            code = response.status_code
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                final_result = response.json()
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_realized. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            final_result = self.api._request('GET', url, params=params, headers={'Authorization': f'Bearer {self.token}'})
+            self._log_ok('get_realized', date)
             return final_result
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_realized. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_realized', date, e)
 
     def get_stocks(self, date=''):
         try:
-            # Преобразуем дату в формат RFC3339
             date_rfc3339 = f"{self.start}T00:00:00.000Z"
             url = "https://statistics-api.wildberries.ru/api/v1/supplier/stocks"
-            headers = {
-                "Authorization": self.token,
-            }
-            params = {
-                "dateFrom": date_rfc3339,
-            }
-            response = requests.get(url, headers=headers, params=params)
-            code = response.status_code
-            if code == 429:
-                self.err429 = True
-            if code == 200:
-                final_result = response.json()
-            else:
-                response.raise_for_status()
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_stocks. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
-            return     final_result
+            params = {"dateFrom": date_rfc3339}
+            final_result = self.api._request('GET', url, params=params)
+            self._log_ok('get_stocks', date)
+            return final_result
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_stocks. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_stocks', date, e)
 
     def get_voronka_week(self, date):
         try:
@@ -643,10 +482,6 @@ class WBbyDate:
             nm_list = [row['nmID'] for row in nm_list_raw] if nm_list_raw else []
             final_list = self.common.get_chunks(nm_list,20)
             url = "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products/history"
-            headers = {
-                "Authorization": self.token,
-                "Content-Type": "application/json"
-            }
             all_cards = []
             for chunk in final_list:
                 payload = {
@@ -658,36 +493,20 @@ class WBbyDate:
                         "skipDeletedNm": True,
                         "aggregationLevel": "day"
                     }
-                response = requests.post(url, headers=headers, json=payload)
-                code = response.status_code
-                if code == 200:
-                    data = response.json()
-                    for card in data:
-                        if len(card['history']) == 0:
-                            pass
-                        elif len(card['history'])>1:
-                            response.raise_for_status()
-                        else:
-                            card_dict = card['product'] | card['history'][0]
-                            all_cards.append(card_dict)
-                else:
-                    response.raise_for_status()
+                data = self.api._request('POST', url, json=payload)
+                for card in data:
+                    if len(card['history']) == 1:
+                        card_dict = card['product'] | card['history'][0]
+                        all_cards.append(card_dict)
                 time.sleep(23)
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_voronka_week. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            self._log_ok('get_voronka_week', date)
             return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_cards)))
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_voronka_week. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_voronka_week', date, e)
 
     def get_voronka_all(self, date):
         try:
             url = "https://seller-analytics-api.wildberries.ru/api/analytics/v3/sales-funnel/products"
-            headers = {
-                "Authorization": self.token,
-                "Content-Type": "application/json"
-            }
             offset = 0
             limit = 1000
             all_cards = []
@@ -701,39 +520,24 @@ class WBbyDate:
                     "limit" : limit,
                     "offset" : offset
                     }
-                response = requests.post(url, headers=headers, json=payload)
-
-                code = response.status_code
-                if code == 200:
-                    data = response.json()['data']['products']
-                    print(len(data))
-                    all_cards.extend(data)
-                    if len(data)<limit:
-                        break
-                    else:
-                        offset += limit
-                else:
-                    response.raise_for_status()
+                data = self.api._request('POST', url, json=payload)
+                products = data['data']['products']
+                all_cards.extend(products)
+                if len(products)<limit:
+                    break
+                offset += limit
                 time.sleep(23)
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_voronka_all. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            self._log_ok('get_voronka_all', date)
             return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_cards)))
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_voronka_all. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_voronka_all', date, e)
 
 
     def get_cards(self, date=''):
         try:
             url = "https://content-api.wildberries.ru/content/v2/get/cards/list"
-            headers = {
-                "Authorization": self.token,
-                "Content-Type": "application/json"
-            }
-
-            all_cards = []  # Хранилище для всех карточек товара
-            cursor = {"limit": 100}  # Начальный курсор
+            all_cards = []
+            cursor = {"limit": 100}
 
             while True:
                 payload = {
@@ -744,83 +548,55 @@ class WBbyDate:
                         }
                     }
                 }
+                data = self.api._request('POST', url, json=payload)
+                cards = data.get('cards', [])
+                cursor_info = data.get('cursor', {})
 
-                response = requests.post(url, headers=headers, json=payload)
-                code = response.status_code
+                if not cards:
+                    break
 
-                if code == 429:
-                    self.err429 = True
-                    time.sleep(60)  # Ждем минуту при превышении лимита
-                    continue
+                all_cards.extend(cards)
 
-                if code == 200:
-                    data = response.json()
-                    cards = data.get('cards', [])
-                    cursor_info = data.get('cursor', {})
+                total = cursor_info.get('total', 0)
+                if total < 100:
+                    break
 
-                    if not cards:  # Если карточек нет, выходим
-                        break
-
-                    all_cards.extend(cards)  # Добавляем карточки на текущей странице
-
-                    # Проверяем, есть ли еще данные
-                    total = cursor_info.get('total', 0)
-                    if total < 100:  # Если получили меньше лимита, это последняя страница
-                        break
-
-                    # Обновляем курсор для следующего запроса
-                    if 'updatedAt' in cursor_info and 'nmID' in cursor_info:
-                        cursor = {
-                            "limit": 100,
-                            "updatedAt": cursor_info['updatedAt'],
-                            "nmID": cursor_info['nmID']
-                        }
-                    else:
-                        break  # Если нет данных для курсора, выходим
-
-                    time.sleep(2)  # Пауза между запросами для соблюдения лимитов
-
+                if 'updatedAt' in cursor_info and 'nmID' in cursor_info:
+                    cursor = {
+                        "limit": 100,
+                        "updatedAt": cursor_info['updatedAt'],
+                        "nmID": cursor_info['nmID']
+                    }
                 else:
-                    response.raise_for_status()
+                    break
 
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_cards. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+                time.sleep(2)
+
+            self._log_ok('get_cards', date)
             return self.common.spread_table(self.common.spread_table(all_cards))
 
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_cards. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_cards', date, e)
 
 
     def get_chosen_feedbacks(self, date, answered):
         try:
             take = 5000
             url = "https://feedbacks-api.wildberries.ru/api/v1/feedbacks"
-            headers = {"Authorization": self.token}
             all_feedbacks = []
             skip = 0
             while True:
                 params = {'order': 'dateAsc', 'isAnswered': answered, 'take': str(take), 'skip': str(skip), "dateFrom": str(self.common.datetime_to_unixtime(date +' 00:00:00')), "dateTo": str(self.common.datetime_to_unixtime(date+ ' 23:59:59'))}
-                response = requests.get(url, headers=headers, params=params)
-                code = response.status_code
-                if code == 429:
-                    self.err429 = True
-                if code == 200:
-                    result = response.json()['data']['feedbacks']
-                    if len(result) == 0:
-                        break
-                    else:
-                        all_feedbacks.extend(result)
-                else:
-                    response.raise_for_status()
+                data = self.api._request('GET', url, params=params)
+                result = data['data']['feedbacks']
+                if len(result) == 0:
+                    break
+                all_feedbacks.extend(result)
                 skip = skip+ take
                 time.sleep(2)
             return all_feedbacks
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_chosen_feedbacks. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_chosen_feedbacks', date, e)
 
 
     def get_feedbacks(self, date):
@@ -828,15 +604,11 @@ class WBbyDate:
             all_feedbacks = []
             all_feedbacks.extend(self.get_chosen_feedbacks(date, "true"))
             all_feedbacks.extend(self.get_chosen_feedbacks(date, "false"))
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_feedbacks. Результат: ОК'
-            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            self._log_ok('get_feedbacks', date)
             return self.common.spread_table(self.common.spread_table(all_feedbacks))
         except Exception as e:
-            message = f'Платформа: WB. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_feedbacks. Ошибка: {e}.'
-            self.common.log_func(self.bot_token, self.chat_list, message, 3)
-            return message
+            return self._log_err('get_feedbacks', date, e)
 
-    # тип отчёта, дата -> данные в CH
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
@@ -861,12 +633,3 @@ class WBbyDate:
                     self.source_dict[report]['delay']
                 )
         self.common.send_logs_clear_anyway(self.bot_token, self.chat_list)
-
-
-
-
-
-
-
-
-

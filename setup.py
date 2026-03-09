@@ -5,7 +5,7 @@ with open('README.md', encoding='utf-8') as f:
 
 setup(
     name='morin',
-    version='0.4.57',
+    version='0.5.0',
     packages=find_packages(),
     description='Помощь в подключениях и загрузке в БД',
     long_description=long_description,
@@ -13,5 +13,5 @@ setup(
     author='Александр Морин',
     author_email='y.director@yandex.ru',
     url='https://github.com/morinad/morin',
-    install_requires=['requests', 'httpx', 'clickhouse_connect', 'pandas', 'python-dateutil'],
+    install_requires=['requests', 'httpx', 'tenacity', 'clickhouse_connect', 'pandas', 'python-dateutil'],
 )

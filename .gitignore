@@ -11,8 +11,12 @@ __pycache__/
 # Игнорировать папку виртуальной среды
 venv/
 .venv/
+.claude/
+.tools/
 
 # Игнорировать другие ненужные файлы
 .DS_Store
 .idea/
 *.egg-info/
+CONNECTORS_PLAN.md
+STYLE_GUIDE.md

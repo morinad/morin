@@ -1,6 +1,5 @@
 import requests
 import time
-import json
 import os
 import clickhouse_connect
 import pandas as pd
@@ -47,8 +46,9 @@ class WBreklama:
     def get_names(self, campaign_list):
         try:
             headers = {"Authorization": self.token}
-            url = "https://advert-api.wildberries.ru/adv/v1/promotion/adverts"
-            response = requests.post(url, json=campaign_list, headers=headers)
+            url = "https://advert-api.wildberries.ru/api/advert/v2/adverts"
+            ids_str = ','.join(str(c) for c in campaign_list)
+            response = requests.get(url, params={'ids': ids_str}, headers=headers)
             try:
                 result = response.json()
             except:
@@ -60,13 +60,32 @@ class WBreklama:
                 self.common.log_func(self.bot_token, self.chat_list, message, 1)
             if response.status_code == 429:
                 self.err429 = True
-            if response.status_code == 200 and result != None:
-                df = pd.json_normalize(result)
+            if response.status_code == 200 and result is not None:
+                campaigns = result.get('adverts', [])
+                rows = []
+                yesterday_str = self.yesterday.strftime('%Y-%m-%dT00:00:00+03:00')
+                for c in campaigns:
+                    ts = c.get('timestamps', {})
+                    status = c.get('status', 0)
+                    if status == -1:
+                        end_time = ts.get('deleted', '') or ts.get('updated', '')
+                    elif status in (7, 8):
+                        end_time = ts.get('updated', '')
+                    else:
+                        end_time = yesterday_str
+                    rows.append({
+                        'endTime': end_time,
+                        'createTime': ts.get('created', ''),
+                        'changeTime': ts.get('updated', ''),
+                        'startTime': ts.get('started', '') or ts.get('created', ''),
+                        'name': c.get('settings', {}).get('name', ''),
+                        'dailyBudget': 0,
+                        'advertId': c['id'],
+                        'status': status,
+                        'type': 9,
+                    })
+                df = pd.DataFrame(rows)
                 df['advertId'] = df['advertId'].astype('int64')
-                required_columns = ["endTime", "createTime", "changeTime", "startTime", "name",  "dailyBudget", "advertId", "status", "type"]
-                df = df[required_columns]
-                pd.set_option('display.max_columns', None)
-                data_types = df.dtypes.reset_index()
                 df['endTime'] = df['endTime'].apply(self.convert_to_timestamp)
                 df['createTime'] = df['createTime'].apply(self.convert_to_timestamp)
                 df['changeTime'] = df['changeTime'].apply(self.convert_to_timestamp)
@@ -81,10 +100,12 @@ class WBreklama:
 
     def get_data(self, body, token):
         try:
-            headers = {'Authorization': token, 'Content-Type': 'application/json'}
-            url = "https://advert-api.wildberries.ru/adv/v2/fullstats"
-            json_data = json.dumps(body)
-            response = requests.post(url, headers=headers, data=json_data)
+            headers = {'Authorization': token}
+            url = "https://advert-api.wildberries.ru/adv/v3/fullstats"
+            ids_str = ','.join(str(item['id']) for item in body)
+            date_str = body[0]['dates'][0]
+            params = {'ids': ids_str, 'beginDate': date_str, 'endDate': date_str}
+            response = requests.get(url, headers=headers, params=params)
             message = f'Платформа: WB_ADS. Имя: {self.add_name}. Функция: get_data. Код: {str(response.status_code)}'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             try: result = response.json()
@@ -105,12 +126,13 @@ class WBreklama:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
 
-    def get_campaigns_in_period(self, campaign_list, token, start_date ):
+    def get_campaigns_in_period(self, campaign_list, token, start_date):
         try:
             end_date = self.yesterday.strftime("%Y-%m-%d")
             headers = {"Authorization": token}
-            url = "https://advert-api.wildberries.ru/adv/v1/promotion/adverts"
-            response = requests.post(url, json=campaign_list, headers=headers)
+            url = "https://advert-api.wildberries.ru/api/advert/v2/adverts"
+            ids_str = ','.join(str(c) for c in campaign_list)
+            response = requests.get(url, params={'ids': ids_str}, headers=headers)
             try:
                 result = response.json()
             except:
@@ -120,20 +142,31 @@ class WBreklama:
             if response.status_code != 200:
                 message = f'Платформа: WB_ADS. Имя: {self.add_name}. Функция: get_campaigns_in_period. Результат: {str(result)}'
                 self.common.log_func(self.bot_token, self.chat_list, message, 1)
-            if response.status_code == 200:
-                df = pd.json_normalize(result)
+            if response.status_code == 200 and result is not None:
+                campaigns = result.get('adverts', [])
+                rows = []
+                yesterday_str = end_date
+                for c in campaigns:
+                    ts = c.get('timestamps', {})
+                    status = c.get('status', 0)
+                    if status == -1:
+                        et = (ts.get('deleted', '') or ts.get('updated', ''))[:10]
+                    elif status in (7, 8):
+                        et = ts.get('updated', '')[:10]
+                    else:
+                        et = yesterday_str
+                    rows.append({
+                        'advertId': c['id'],
+                        'createTime': ts.get('created', '')[:10],
+                        'endTime': et,
+                    })
+                df = pd.DataFrame(rows)
                 df['advertId'] = df['advertId'].astype('int64')
-                required_columns = [  "advertId", "createTime", "endTime",]
-                df = df[required_columns]
-                pd.set_option('display.max_columns', None)
-                df['endTime'] = df['endTime'].str[:10]
-                df['createTime'] = df['createTime'].str[:10]
                 df_filtered = df[((df['createTime'] <= end_date) & (df['endTime'] >= start_date))
                                | ((df['endTime'] >= start_date) & (df['createTime'] <= end_date))
                                | ((df['createTime'] >= start_date) & (df['endTime'] <= end_date))
                                | ((df['createTime'] <= start_date) & (df['endTime'] >= end_date))]
                 advert_id_list = df_filtered['advertId'].tolist()
-
                 return advert_id_list
             else:
                 return None
@@ -189,7 +222,7 @@ class WBreklama:
                         extract_date = day['date']
                         for app in day['apps']:
                             extract_app = app['appType']
-                            for nm in app['nm']:
+                            for nm in app['nms']:
                                 extract_nm = nm['nmId']
                                 try:
                                     out_json.append({
