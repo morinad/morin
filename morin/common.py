@@ -49,13 +49,13 @@ class Common:
                 log_file_path = "/app/logs/log.txt"
                 if not os.path.exists(log_file_path):
                     os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
-                with open(log_file_path, "r") as log_file:
+                with open(log_file_path, "r", encoding="utf-8") as log_file:
                     content = log_file.read()
                 if len(content) > 1000:
                     self.message_text = content
                     self.send_logs(bot_token, chat_ids)
-                    with open(log_file_path, "w") as log_file:
-                        log_file.write("")  # Очищаем файл
+                    with open(log_file_path, "w", encoding="utf-8") as log_file:
+                        log_file.write("")
                     print("Файл очищен, длина содержимого превышала 1000 символов.")
                 return content
         except Exception as e:
@@ -67,13 +67,13 @@ class Common:
                 log_file_path = "/app/logs/log.txt"
                 if not os.path.exists(log_file_path):
                     print("Файл лога не существует.")
-                with open(log_file_path, "r") as log_file:
+                with open(log_file_path, "r", encoding="utf-8") as log_file:
                     content = log_file.read()
                 if len(content.strip()) > 0:
                     self.message_text = content.strip()
                     self.send_logs(bot_token, chat_ids)
-                    with open(log_file_path, "w") as log_file:
-                        log_file.write("")  # Очищаем файл
+                    with open(log_file_path, "w", encoding="utf-8") as log_file:
+                        log_file.write("")
                     print("Файл очищен, длина содержимого превышала 1000 символов.")
                 return content
         except Exception as e:
@@ -81,6 +81,8 @@ class Common:
 
     def send_logs(self, bot_token, chat_ids):
         try:
+            if not bot_token or not chat_ids:
+                return
             url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
             for chat_id in chat_ids:
                 try:

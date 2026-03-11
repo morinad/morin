@@ -1,6 +1,6 @@
 from .common import Common
 from .clickhouse import Clickhouse
-import requests
+from .base_client import BaseMarketplaceClient
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -41,6 +41,14 @@ class YMbyDate:
         self.err429 = False
         self.filters = filters
         self.backfill_days = backfill_days
+        self.api = BaseMarketplaceClient(
+            base_url='https://api-metrika.yandex.ru',
+            headers={'Authorization': f'OAuth {self.token}'},
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
 
         self.source_dict = {
             'date': {
@@ -71,10 +79,8 @@ class YMbyDate:
             },
         }
 
-    def get_metrika_data(self,date1, date2,limit, offset):
+    def get_metrika_data(self, date1, date2, limit, offset):
         try:
-            url = "https://api-metrika.yandex.ru/stat/v1/data"
-            headers = {"Authorization": f"OAuth {self.token}"}
             params = {
                 "ids": self.login,
                 "metrics": self.metrics,
@@ -88,11 +94,10 @@ class YMbyDate:
                 params["offset"] = offset
             if self.filters:
                 params["filters"] = self.filters
-            response = requests.get(url, headers=headers, params=params)
-            if response.status_code != 200:
-                response.raise_for_status()
-            return response.json()
+            return self.api._request('GET', '/stat/v1/data', params=params)
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: YM. Имя: {self.add_name}. Даты: {str(date1)}-{str(date2)}. Функция: get_metrika_data. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise

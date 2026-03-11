@@ -1,6 +1,6 @@
 from .common import Common
 from .clickhouse import Clickhouse
-import requests
+from .base_client import BaseMarketplaceClient
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -41,6 +41,18 @@ class YDbyDate:
         self.err429 = False
         self.attributions = attributions
         self.backfill_days = backfill_days
+        self.api = BaseMarketplaceClient(
+            base_url='https://api.direct.yandex.com',
+            headers={
+                'Authorization': f'Bearer {self.token}',
+                'Client-Login': self.login,
+                'Accept-Language': 'ru',
+            },
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
 
         self.source_dict = {
             'date': {
@@ -97,19 +109,16 @@ class YDbyDate:
             raise
 
 
-    # дата+токен -> список словарей с заказами (данные)
     def get_report(self, date1, date2):
         try:
             current_hour = self.now.hour
             report_name = self.common.shorten_text(str(date1)+str(date2) + str(self.today) + str(self.login) + str(self.columns)
                                                    + str(self.goals) + str(self.attributions) + str(current_hour))
-            headers = {
-                "Authorization": "Bearer " + self.token,
-                "Client-Login": self.login,
-                "Accept-Language": "ru", "processingMode": "auto", "returnMoneyInMicros": "false",
+            extra_headers = {
+                "processingMode": "auto", "returnMoneyInMicros": "false",
                 "skipReportHeader": "true", "skipColumnHeader": "false", "skipReportSummary": "true"
             }
-            dict = {
+            report_dict = {
                 "SelectionCriteria": {"DateFrom": date1, "DateTo": date2},
                 "FieldNames": self.columns.replace(' ', '').split(','),
                 "ReportName": report_name,
@@ -119,28 +128,27 @@ class YDbyDate:
             }
             if self.goals != None and self.goals != '':
                 goals_list = list(map(int, self.goals.replace(' ', '').split(',')))
-                goal_dict = {"Goals": goals_list}
-                dict = dict | goal_dict
+                report_dict["Goals"] = goals_list
             if self.attributions != None and self.attributions != '':
-                att_dict = {"AttributionModels": self.attributions.replace(' ', '').split(',')}
-                dict = dict | att_dict
-            data = {"params": dict}
-            response = requests.post('https://api.direct.yandex.com/json/v5/reports', headers=headers, json=data)
+                report_dict["AttributionModels"] = self.attributions.replace(' ', '').split(',')
+            data = {"params": report_dict}
+            response = self.api._request_raw('POST', '/json/v5/reports', json=data, headers=extra_headers)
             start_code = response.status_code
             if start_code == 200:
-                final_result= self.tsv_to_dict(response)
+                final_result = self.tsv_to_dict(response)
             elif start_code == 201:
                 for i in range(60):
                     time.sleep(10)
-                    response = requests.post('https://api.direct.yandex.com/json/v5/reports', headers=headers, json=data)
-                    code = response.status_code
-                    if code == 200:
+                    response = self.api._request_raw('POST', '/json/v5/reports', json=data, headers=extra_headers)
+                    if response.status_code == 200:
                         final_result = self.tsv_to_dict(response)
                         break
             else:
                 response.raise_for_status()
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: YD. Имя: {self.add_name}. Даты: {str(date1)}-{str(date2)}. Функция: get_report. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -171,20 +179,16 @@ class YDbyDate:
 
     def get_campaigns(self):
         try:
-            campaigns_url = 'https://api.direct.yandex.com/json/v5/campaigns'
-            headers = {"Authorization": "Bearer " + self.token,
-                "Client-Login": self.login,
-                "Accept-Language": "ru",
-                "Content-Type": "application/json"}
             data = {"method": "get",
                 "params": {
                     "SelectionCriteria": {},
                     "FieldNames": ["Id", "Name"]}}
-            jsonData = json.dumps(data, ensure_ascii=False).encode('utf8')
-            response = requests.post(campaigns_url, data=jsonData, headers=headers)
-            camp_data = response.json()['result']['Campaigns']
+            result = self.api._request('POST', '/json/v5/campaigns', json=data)
+            camp_data = result['result']['Campaigns']
             return camp_data
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: YD. Имя: {self.add_name}. Функция: get_campaigns. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -193,27 +197,21 @@ class YDbyDate:
 
     def get_ads(self, campaign_id, offset):
         try:
-            ads_url = 'https://api.direct.yandex.com/json/v5/ads'
-            headers = {
-                "Authorization": "Bearer " + self.token,
-                "Client-Login": self.login,
-                "Accept-Language": "ru",
-                "Content-Type": "application/json",
-            }
             body = {"method": "get",
                     "params": {"SelectionCriteria": {"CampaignIds": [int(campaign_id)]},
-                    "FieldNames": [ "CampaignId", "Id", "State", "Status"],
-                    "TextAdFieldNames":["Title", "Title2" ,"Text", "Href"],
-                    "Page": { "Limit": 10000, "Offset": offset }
+                    "FieldNames": ["CampaignId", "Id", "State", "Status"],
+                    "TextAdFieldNames": ["Title", "Title2", "Text", "Href"],
+                    "Page": {"Limit": 10000, "Offset": offset}
                     }}
-            jsonBody = json.dumps(body, ensure_ascii=False).encode('utf8')
-            response = requests.post(ads_url, data=jsonBody, headers=headers)
-            ads_data = response.json()['result']
+            result = self.api._request('POST', '/json/v5/ads', json=body)
+            ads_data = result['result']
             if not ads_data:
-                return    []
+                return []
             else:
                 return ads_data['Ads']
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: YD. Имя: {self.add_name}. Функция: get_ads. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise

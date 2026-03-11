@@ -215,7 +215,7 @@ class TestExtractDf:
         obj.add_name = 'test'
         obj.now = datetime.now()
 
-        df, booster_df = obj.extract_df(mock_response)
+        df, booster_df, out_json, out_booster_json = obj.extract_df(mock_response)
 
         assert len(df) == 1
         assert df.iloc[0]['advertId'] == 123
@@ -228,6 +228,13 @@ class TestExtractDf:
         assert len(booster_df) == 1
         assert booster_df.iloc[0]['nm'] == 456
         assert booster_df.iloc[0]['avgPosition'] == 5
+
+        assert len(out_json) == 1
+        assert out_json[0]['advertId'] == 123
+        assert out_json[0]['nmId'] == 789
+
+        assert len(out_booster_json) == 1
+        assert out_booster_json[0]['nm'] == 456
 
 
 # =====================================================================
@@ -317,8 +324,9 @@ if __name__ == '__main__':
                 ]}
             ]}]
         }]
-        df, booster_df = obj.extract_df(mock)
+        df, booster_df, out_json, out_booster_json = obj.extract_df(mock)
         print(f"  data rows: {len(df)}, booster rows: {len(booster_df)}")
+        print(f"  raw data dicts: {len(out_json)}, raw booster dicts: {len(out_booster_json)}")
         print(f"  columns: {list(df.columns)}")
         print(f"  data: {df.to_dict('records')}")
 

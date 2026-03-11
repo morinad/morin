@@ -348,10 +348,15 @@ class OZONbyDate:
 
     def csv_to_dict_list(self, url):
         try:
-            import httpx as _httpx
-            response = _httpx.get(url, timeout=60.0)
+            try:
+                import httpx as _httpx
+                response = _httpx.get(url, timeout=60.0)
+            except ImportError:
+                import requests as _requests
+                response = _requests.get(url, timeout=60)
             response.raise_for_status()
-            csv_content = StringIO(response.text)
+            clean_text = response.text.lstrip('\ufeff')
+            csv_content = StringIO(clean_text)
             csv_reader = csv.reader(csv_content, delimiter=';')
             headers = next(csv_reader, None)
             result = [dict(zip(headers, row)) for row in csv_reader if row]

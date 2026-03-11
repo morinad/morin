@@ -6,8 +6,14 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from morin.wb_by_date import WBbyDate
-from morin.base_client import BaseMarketplaceClient
+try:
+    from morin.wb_by_date import WBbyDate
+    from morin.base_client import BaseMarketplaceClient
+    HAS_HTTPX = True
+except ImportError:
+    HAS_HTTPX = False
+
+needs_httpx = pytest.mark.skipif(not HAS_HTTPX, reason='httpx не установлен — используйте старую версию без httpx')
 
 
 # ===== ВСТАВЬТЕ СВОИ ДАННЫЕ =====
@@ -34,6 +40,7 @@ def wb():
 #  wb_realized
 # =====================================================================
 
+@needs_httpx
 class TestWbRealizedInit:
     def test_api_is_base_marketplace_client(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -55,6 +62,7 @@ class TestWbRealizedInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetRealizedLive:
     def test_returns_list(self, wb):
         result = wb.get_realized(WEEK_AGO)
@@ -70,6 +78,7 @@ class TestGetRealizedLive:
 #  wb_orders
 # =====================================================================
 
+@needs_httpx
 class TestWbOrdersInit:
     def test_source_dict_has_orders(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -78,6 +87,7 @@ class TestWbOrdersInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetOrdersLive:
     def test_returns_list(self, wb):
         result = wb.get_orders(YESTERDAY)
@@ -93,6 +103,7 @@ class TestGetOrdersLive:
 #  wb_sbor_orders
 # =====================================================================
 
+@needs_httpx
 class TestWbSborOrdersInit:
     def test_source_dict_has_sbor_orders(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -101,6 +112,7 @@ class TestWbSborOrdersInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetSborLive:
     def test_returns_list(self, wb):
         result = wb.get_sbor(YESTERDAY)
@@ -116,6 +128,7 @@ class TestGetSborLive:
 #  wb_sbor_status
 # =====================================================================
 
+@needs_httpx
 class TestWbSborStatusInit:
     def test_source_dict_has_sbor_status(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -124,6 +137,7 @@ class TestWbSborStatusInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetSborStatusLive:
     def test_returns_list(self, wb):
         result = wb.get_sbor_status(YESTERDAY)
@@ -139,6 +153,7 @@ class TestGetSborStatusLive:
 #  wb_incomes
 # =====================================================================
 
+@needs_httpx
 class TestWbIncomesInit:
     def test_source_dict_has_incomes(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -147,6 +162,7 @@ class TestWbIncomesInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetIncomesLive:
     def test_returns_list(self, wb):
         result = wb.get_incomes()
@@ -162,6 +178,7 @@ class TestGetIncomesLive:
 #  wb_excise
 # =====================================================================
 
+@needs_httpx
 class TestWbExciseInit:
     def test_source_dict_has_excise(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -170,6 +187,7 @@ class TestWbExciseInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetExciseLive:
     def test_returns_list(self, wb):
         result = wb.get_excise(YESTERDAY)
@@ -185,6 +203,7 @@ class TestGetExciseLive:
 #  wb_sales
 # =====================================================================
 
+@needs_httpx
 class TestWbSalesInit:
     def test_source_dict_has_sales(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -193,6 +212,7 @@ class TestWbSalesInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetSalesLive:
     def test_returns_list(self, wb):
         result = wb.get_sales(YESTERDAY)
@@ -208,6 +228,7 @@ class TestGetSalesLive:
 #  wb_orders_changes
 # =====================================================================
 
+@needs_httpx
 class TestWbOrdersChangesInit:
     def test_source_dict_has_orders_changes(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -216,6 +237,7 @@ class TestWbOrdersChangesInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetOrdersChangesLive:
     def test_returns_list(self, wb):
         result = wb.get_orders_changes(YESTERDAY)
@@ -231,6 +253,7 @@ class TestGetOrdersChangesLive:
 #  wb_sales_changes
 # =====================================================================
 
+@needs_httpx
 class TestWbSalesChangesInit:
     def test_source_dict_has_sales_changes(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -239,6 +262,7 @@ class TestWbSalesChangesInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetSalesChangesLive:
     def test_returns_list(self, wb):
         result = wb.get_sales_changes(YESTERDAY)
@@ -254,6 +278,7 @@ class TestGetSalesChangesLive:
 #  wb_stocks  (stocks + stocks_history — одна функция)
 # =====================================================================
 
+@needs_httpx
 class TestWbStocksInit:
     def test_source_dict_has_stocks(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -267,6 +292,7 @@ class TestWbStocksInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetStocksLive:
     def test_returns_list(self, wb):
         result = wb.get_stocks()
@@ -282,6 +308,7 @@ class TestGetStocksLive:
 #  wb_cards
 # =====================================================================
 
+@needs_httpx
 class TestWbCardsInit:
     def test_source_dict_has_cards(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -290,6 +317,7 @@ class TestWbCardsInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetCardsLive:
     def test_returns_list(self, wb):
         result = wb.get_cards()
@@ -309,6 +337,7 @@ class TestGetCardsLive:
 #  wb_adv_upd
 # =====================================================================
 
+@needs_httpx
 class TestWbAdvUpdInit:
     def test_source_dict_has_adv_upd(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -317,6 +346,7 @@ class TestWbAdvUpdInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetAdvUpdLive:
     def test_returns_list(self, wb):
         result = wb.get_adv_upd(YESTERDAY)
@@ -332,6 +362,7 @@ class TestGetAdvUpdLive:
 #  wb_paid_storage
 # =====================================================================
 
+@needs_httpx
 class TestWbPaidStorageInit:
     def test_source_dict_has_paid_storage(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -346,6 +377,7 @@ class TestWbPaidStorageInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetPaidStorageLive:
     def test_returns_list(self, wb):
         result = wb.get_paid_storage(YESTERDAY)
@@ -361,6 +393,7 @@ class TestGetPaidStorageLive:
 #  wb_voronka_week  (требует таблицу wb_cards в ClickHouse — skip без CH)
 # =====================================================================
 
+@needs_httpx
 class TestWbVoronkaWeekInit:
     def test_source_dict_has_voronka_week(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -372,6 +405,7 @@ class TestWbVoronkaWeekInit:
 #  wb_voronka_all
 # =====================================================================
 
+@needs_httpx
 class TestWbVoronkaAllInit:
     def test_source_dict_has_voronka_all(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -380,6 +414,7 @@ class TestWbVoronkaAllInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetVoronkaAllLive:
     def test_returns_list(self, wb):
         result = wb.get_voronka_all(YESTERDAY)
@@ -395,6 +430,7 @@ class TestGetVoronkaAllLive:
 #  wb_feedbacks
 # =====================================================================
 
+@needs_httpx
 class TestWbFeedbacksInit:
     def test_source_dict_has_feedbacks(self):
         instance = WBbyDate(token='fake_token', add_name='test', start='2025-01-01')
@@ -407,6 +443,7 @@ class TestWbFeedbacksInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetFeedbacksLive:
     def test_returns_list(self, wb):
         result = wb.get_feedbacks(YESTERDAY)

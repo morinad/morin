@@ -7,8 +7,14 @@ from dateutil.relativedelta import relativedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from morin.ozon_by_date import OZONbyDate
-from morin.base_client import BaseMarketplaceClient
+try:
+    from morin.ozon_by_date import OZONbyDate
+    from morin.base_client import BaseMarketplaceClient
+    HAS_HTTPX = True
+except ImportError:
+    HAS_HTTPX = False
+
+needs_httpx = pytest.mark.skipif(not HAS_HTTPX, reason='httpx не установлен — используйте старую версию без httpx')
 
 
 # ===== ВСТАВЬТЕ СВОИ ДАННЫЕ =====
@@ -46,6 +52,7 @@ def ozon():
 #  ozon_get_all_products
 # =====================================================================
 
+@needs_httpx
 class TestOzonGetAllProductsInit:
     def test_api_is_base_marketplace_client(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -94,6 +101,7 @@ class TestOzonGetAllProductsInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetAllProductsLive:
     def test_returns_list(self, ozon):
         result = ozon.get_all_products()
@@ -128,6 +136,7 @@ class TestGetAllProductsLive:
 #  ozon_transactions
 # =====================================================================
 
+@needs_httpx
 class TestOzonTransactionsInit:
     def test_source_dict_has_transactions(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -136,6 +145,7 @@ class TestOzonTransactionsInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetTransactionsLive:
     def test_returns_list(self, ozon):
         result = ozon.get_transactions(YESTERDAY)
@@ -148,6 +158,7 @@ class TestGetTransactionsLive:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetTransactionPageCountLive:
     def test_returns_int(self, ozon):
         result = ozon.get_transaction_page_count(YESTERDAY)
@@ -163,6 +174,7 @@ class TestGetTransactionPageCountLive:
 #  ozon_stocks  (stocks + stocks_history — одна функция)
 # =====================================================================
 
+@needs_httpx
 class TestOzonStocksInit:
     def test_source_dict_has_stocks(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -176,6 +188,7 @@ class TestOzonStocksInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetStockOnWarehousesLive:
     def test_returns_list(self, ozon):
         result = ozon.get_stock_on_warehouses()
@@ -191,6 +204,7 @@ class TestGetStockOnWarehousesLive:
 #  ozon_stocks_sku  (stocks_sku + stocks_sku_history — одна функция)
 # =====================================================================
 
+@needs_httpx
 class TestOzonStocksSkuInit:
     def test_source_dict_has_stocks_sku(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -204,6 +218,7 @@ class TestOzonStocksSkuInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetStocksSkuLive:
     def test_returns_list(self, ozon):
         result = ozon.get_stocks_sku()
@@ -216,6 +231,7 @@ class TestGetStocksSkuLive:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetStocksSkuHelpersLive:
     def test_create_products_report_callable(self, ozon):
         assert callable(getattr(ozon, 'create_products_report', None))
@@ -237,6 +253,7 @@ class TestGetStocksSkuHelpersLive:
 #  ozon_products_info
 # =====================================================================
 
+@needs_httpx
 class TestOzonProductsInfoInit:
     def test_source_dict_has_products_info(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -245,6 +262,7 @@ class TestOzonProductsInfoInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetAllProductsInfoLive:
     def test_returns_list(self, ozon):
         result = ozon.get_all_products_info()
@@ -264,6 +282,7 @@ class TestGetAllProductsInfoLive:
 #  ozon_returns
 # =====================================================================
 
+@needs_httpx
 class TestOzonReturnsInit:
     def test_source_dict_has_returns(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -272,6 +291,7 @@ class TestOzonReturnsInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetAllReturnsLive:
     def test_returns_list(self, ozon):
         result = ozon.get_all_returns()
@@ -287,6 +307,7 @@ class TestGetAllReturnsLive:
 #  ozon_returns_days
 # =====================================================================
 
+@needs_httpx
 class TestOzonReturnsDaysInit:
     def test_source_dict_has_returns_days(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -295,6 +316,7 @@ class TestOzonReturnsDaysInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetReturnsLive:
     def test_returns_list(self, ozon):
         result = ozon.get_returns(YESTERDAY)
@@ -310,6 +332,7 @@ class TestGetReturnsLive:
 #  ozon_realization
 # =====================================================================
 
+@needs_httpx
 class TestOzonRealizationInit:
     def test_source_dict_has_realization(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -318,6 +341,7 @@ class TestOzonRealizationInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetRealizationLive:
     def test_returns_list(self, ozon):
         result = ozon.get_realization(REALIZATION_DATE)
@@ -333,6 +357,7 @@ class TestGetRealizationLive:
 #  ozon_realization_posting
 # =====================================================================
 
+@needs_httpx
 class TestOzonRealizationPostingInit:
     def test_source_dict_has_realization_posting(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -341,6 +366,7 @@ class TestOzonRealizationPostingInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetRealizationPostingLive:
     def test_returns_list(self, ozon):
         result = ozon.get_realization_posting(REALIZATION_DATE)
@@ -356,6 +382,7 @@ class TestGetRealizationPostingLive:
 #  ozon_postings_fbo
 # =====================================================================
 
+@needs_httpx
 class TestOzonPostingsFboInit:
     def test_source_dict_has_postings_fbo(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -364,6 +391,7 @@ class TestOzonPostingsFboInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetPostingsFboLive:
     def test_returns_list(self, ozon):
         result = ozon.get_postings_fbo(YESTERDAY)
@@ -379,6 +407,7 @@ class TestGetPostingsFboLive:
 #  ozon_postings_fbs_rep
 # =====================================================================
 
+@needs_httpx
 class TestOzonPostingsFbsRepInit:
     def test_source_dict_has_postings_fbs_rep(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -387,6 +416,7 @@ class TestOzonPostingsFbsRepInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetPostingsFbsReportLive:
     def test_returns_list(self, ozon):
         result = ozon.get_postings_fbs_report(YESTERDAY)
@@ -399,6 +429,7 @@ class TestGetPostingsFbsReportLive:
 
 
 @needs_credentials
+@needs_httpx
 class TestPostingsFbsReportHelpersLive:
     def test_create_postings_report_callable(self, ozon):
         assert callable(getattr(ozon, 'create_postings_report', None))
@@ -414,6 +445,7 @@ class TestPostingsFbsReportHelpersLive:
 #  ozon_finance_details
 # =====================================================================
 
+@needs_httpx
 class TestOzonFinanceDetailsInit:
     def test_source_dict_has_finance_details(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -422,6 +454,7 @@ class TestOzonFinanceDetailsInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetFinanceDetailsLive:
     def test_returns_list(self, ozon):
         result = ozon.get_finance_details(FINANCE_DATE)
@@ -434,6 +467,7 @@ class TestGetFinanceDetailsLive:
 
 
 @needs_credentials
+@needs_httpx
 class TestFinanceDetailsHelpersLive:
     def test_get_date_range_returns_tuple(self, ozon):
         result = ozon.get_date_range(FINANCE_DATE)
@@ -451,6 +485,7 @@ class TestFinanceDetailsHelpersLive:
 #  ozon_finance_cashflow
 # =====================================================================
 
+@needs_httpx
 class TestOzonFinanceCashflowInit:
     def test_source_dict_has_finance_cashflow(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -459,6 +494,7 @@ class TestOzonFinanceCashflowInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetFinanceCashflowLive:
     def test_returns_list(self, ozon):
         result = ozon.get_finance_cashflow(FINANCE_DATE)
@@ -471,6 +507,7 @@ class TestGetFinanceCashflowLive:
 
 
 @needs_credentials
+@needs_httpx
 class TestFinanceCashflowHelpersLive:
     def test_get_date_range_returns_tuple(self, ozon):
         result = ozon.get_date_range(FINANCE_DATE)
@@ -486,6 +523,7 @@ class TestFinanceCashflowHelpersLive:
 #  ozon_products_buyout
 # =====================================================================
 
+@needs_httpx
 class TestOzonProductsBuyoutInit:
     def test_source_dict_has_products_buyout(self):
         instance = OZONbyDate(clientid='fake_id', token='fake_key', add_name='test')
@@ -494,6 +532,7 @@ class TestOzonProductsBuyoutInit:
 
 
 @needs_credentials
+@needs_httpx
 class TestGetProductsBuyoutLive:
     def test_returns_list(self, ozon):
         result = ozon.get_products_buyout(YESTERDAY)

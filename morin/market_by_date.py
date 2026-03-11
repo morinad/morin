@@ -1,6 +1,10 @@
 from .common import Common
 from .clickhouse import Clickhouse
-import requests
+from .base_client import BaseMarketplaceClient, HAS_HTTPX
+if HAS_HTTPX:
+    import httpx
+else:
+    import requests
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -42,6 +46,17 @@ class MRKTbyDate:
         self.platform = 'mrkt'
 
         self.err429 = False
+        self.api = BaseMarketplaceClient(
+            base_url='https://api.partner.market.yandex.ru',
+            headers={
+                'Authorization': f'Bearer {self.token}',
+                'Content-Type': 'application/json'
+            },
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
         self.source_dict = {
             'stocks': {
                 'platform': 'mrkt',
@@ -110,24 +125,19 @@ class MRKTbyDate:
             },
         }
 
-    def get_stocks_data(self, campaign_id, token, next_page_token=None):
+    def get_stocks_data(self, campaign_id, next_page_token=None):
         try:
             final_list = []
-            url = f"https://api.partner.market.yandex.ru/campaigns/{campaign_id}/offers/stocks"
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"  # Обязательно для POST-запроса
-            }
-            payload = {
-                "limit": 100
-            }
-            data = {}
+            payload = {"limit": 100}
+            params = {}
             if next_page_token:
-                data = {"page_token": next_page_token}
-            response = requests.post(url, headers=headers, json=payload, params=data)
-            if response.status_code not in {200, 400, 404}:
-                response.raise_for_status()
-            result = response.json()
+                params = {"page_token": next_page_token}
+            try:
+                result = self.api._request('POST', f'/campaigns/{campaign_id}/offers/stocks', json=payload, params=params)
+            except (httpx.HTTPStatusError if HAS_HTTPX else requests.HTTPError) as e:
+                if e.response is not None and e.response.status_code in (400, 404):
+                    return [], None
+                raise
             if "result" not in result:
                 return [], None
             warehouses = result["result"].get("warehouses", [])
@@ -144,7 +154,9 @@ class MRKTbyDate:
             next_page_token = result["result"].get("paging", {}).get("nextPageToken")
             return final_list, next_page_token
         except Exception as e:
-            message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_stocks_data. Ошибка: {e}.'
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: MRKT. Имя: {self.add_name}. Функция: get_stocks_data. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
 
@@ -154,7 +166,7 @@ class MRKTbyDate:
             all_stocks = []
             next_page_token = None
             for _ in range(1000):
-                stocks, next_page_token = self.get_stocks_data(self.clientid, self.token, next_page_token)
+                stocks, next_page_token = self.get_stocks_data(self.clientid, next_page_token)
                 all_stocks += stocks
                 if not next_page_token:
                     break
@@ -168,25 +180,14 @@ class MRKTbyDate:
             return message
 
 
-    def get_orders_data(self,date, next_page_token=None):
+    def get_orders_data(self, date, next_page_token=None):
         try:
             final_list = []
-            url = f"https://api.partner.market.yandex.ru/campaigns/{self.clientid}/stats/orders"
-            headers = {
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json"  # Обязательно для запросов
-            }
-            payload = {
-                'dateFrom': date, 'dateTo': date
-            }
+            payload = {'dateFrom': date, 'dateTo': date}
             params = {"limit": 200}
             if next_page_token:
-                params = {"limit": 200, "page_token": next_page_token}
-            response = requests.post(url, headers=headers, json=payload, params=params)
-            code = response.status_code
-            if code not in {200}:
-                response.raise_for_status()
-            result = response.json()
+                params["page_token"] = next_page_token
+            result = self.api._request('POST', f'/campaigns/{self.clientid}/stats/orders', json=payload, params=params)
             if "result" not in result:
                 return [], None
             orders = result["result"].get("orders", [])
@@ -195,6 +196,8 @@ class MRKTbyDate:
             next_page_token = result["result"].get("paging", {}).get("nextPageToken")
             return final_list, next_page_token
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(date)}. Функция: get_orders_data. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -221,24 +224,18 @@ class MRKTbyDate:
 
     def get_offer_mappings_data(self, next_page_token=None):
         try:
-            url = f"https://api.partner.market.yandex.ru/businesses/{self.clientid}/offer-mappings"
-            headers = {
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json"
-            }
             params = {"limit": 200}
             if next_page_token:
                 params["page_token"] = next_page_token
-            response = requests.post(url, headers=headers, params=params)
-            if response.status_code != 200:
-                response.raise_for_status()
-            result = response.json()
+            result = self.api._request('POST', f'/businesses/{self.clientid}/offer-mappings', params=params)
             if "result" not in result:
                 return [], None
             offer_mappings = result["result"].get("offerMappings", [])
             next_page_token = result["result"].get("paging", {}).get("nextPageToken")
             return offer_mappings, next_page_token
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MRKT. Имя: {self.add_name}. Функция: get_offer_mappings_data. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -265,89 +262,65 @@ class MRKTbyDate:
 
     def generate_price_report(self, year: str, month: str):
         try:
-            url = "https://api.partner.market.yandex.ru/reports/united-marketplace-services/generate"
-            headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-            params = {
-                "format": "CSV",
-                "language": "EN"
-            }
+            params = {"format": "CSV", "language": "EN"}
             payload = {
-            "businessId": self.clientid,
-            "monthFrom": month,
-            "monthTo": month,
-            "yearFrom": year,
-            "yearTo": year
-        }
-            response = requests.post(url, headers=headers, json=payload, params=params)
-            code = response.status_code
-            if code != 200:
-                response.raise_for_status()
-            result = response.json()
+                "businessId": self.clientid,
+                "monthFrom": month, "monthTo": month,
+                "yearFrom": year, "yearTo": year
+            }
+            result = self.api._request('POST', '/reports/united-marketplace-services/generate', json=payload, params=params)
             report_id = result["result"].get("reportId")
             message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(year)}-{str(month)}. Функция: generate_price_report. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return report_id
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(year)}-{str(month)}. Функция: generate_price_report. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def generate_orders_report(self, date1: str, date2: str):
         try:
-            url = "https://api.partner.market.yandex.ru/reports/united-orders/generate"
-            headers = {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
-            params = {
-                "format": "CSV",
-                "language": "EN"
-            }
+            params = {"format": "CSV", "language": "EN"}
             payload = {
-            "businessId": self.clientid,
-            "dateFrom": date1,
-            "dateTo": date2
-        }
-            response = requests.post(url, headers=headers, json=payload, params=params)
-            code = response.status_code
-            if code != 200:
-                response.raise_for_status()
-            result = response.json()
+                "businessId": self.clientid,
+                "dateFrom": date1, "dateTo": date2
+            }
+            result = self.api._request('POST', '/reports/united-orders/generate', json=payload, params=params)
             report_id = result["result"].get("reportId")
             message = f'Платформа: MRKT. Имя: {self.add_name}. Дата: {str(date1)}-{str(date2)}. Функция: generate_orders_report. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return report_id
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(date1)}-{str(date2)}. Функция: generate_orders_report. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def check_report_status(self, report_id: str):
         try:
-            url = f"https://api.partner.market.yandex.ru/reports/info/{report_id}"
-            headers = {
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json"
-            }
-            response = requests.get(url, headers=headers)
-            if response.status_code != 200:
-                response.raise_for_status()
-            result = response.json()
+            result = self.api._request('GET', f'/reports/info/{report_id}')
             file_url = result["result"].get("file")
             message = f'Платформа: MRKT. Имя: {self.add_name}. Отчёт: {str(report_id)}. Функция: check_report_status. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return file_url
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MRKT. Имя: {self.add_name}. Даты: {str(report_id)}. Функция: check_report_status. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def process_report_files(self, file_url: str):
         try:
-            headers = {
-                "Authorization": f"Bearer {self.token}"
-            }
             all_rows = []
-            response = requests.get(file_url, headers=headers)
-            if response.status_code != 200:
-                response.raise_for_status()
+            if HAS_HTTPX:
+                response = httpx.get(file_url, headers={'Authorization': f'Bearer {self.token}'}, timeout=60.0)
+            else:
+                response = requests.get(file_url, headers={'Authorization': f'Bearer {self.token}'}, timeout=60)
+            response.raise_for_status()
             with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
                 for file_name in zip_file.namelist():
                     if file_name.endswith('.csv'):
