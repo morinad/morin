@@ -24,11 +24,5 @@ WB, OZON, Yandex Market, GetCourse, Yandex Direct, VK Ads, Yandex Metrika, Bitri
 
 ### Новые видео, статьи и полезности в Telegram-канале: https://t.me/+2kqVrjV5aXs0NTRi
 
-### Наши курсы по Power Query, Power BI и автоматизации:
-1) Основы Power BI (бесплатный курс): https://directprorf.ru/basics?utm_source=github
-2) Power BI для рекламных отчётов: https://directprorf.ru/powerbi?utm_source=github
-3) Из API в Excel и Power BI + коннекторы: https://directprorf.ru/excel?utm_source=github
-4) Коннекторы для Маркетплейсов: https://directprorf.ru/marketplaces?utm_source=github
-5) Продвинутый Power Query: https://directprorf.ru/pro?utm_source=github
-6) Создание коннекторов в Power Query: https://directprorf.ru/connectors?utm_source=github
+### Все наши курсы и коннекторы на платформе: https://directprobi.ru/platform?utm_source=github
 
