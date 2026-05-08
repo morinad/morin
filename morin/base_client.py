@@ -46,11 +46,11 @@ class _RequestsClientWrapper:
 
 
 class BaseMarketplaceClient:
-    def __init__(self, base_url='', headers=None, bot_token='', chat_list=None, common=None, name=''):
+    def __init__(self, base_url='', headers=None, bot_token='', chat_list=None, common=None, name='', timeout=30.0):
         if HAS_HTTPX:
-            self.client = httpx.Client(base_url=base_url, headers=headers or {}, timeout=30.0)
+            self.client = httpx.Client(base_url=base_url, headers=headers or {}, timeout=timeout)
         else:
-            self.client = _RequestsClientWrapper(base_url=base_url, headers=headers or {}, timeout=30.0)
+            self.client = _RequestsClientWrapper(base_url=base_url, headers=headers or {}, timeout=timeout)
         self.bot_token = bot_token
         self.chat_list = chat_list
         self.common = common

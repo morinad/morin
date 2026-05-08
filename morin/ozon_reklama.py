@@ -8,6 +8,7 @@ import zipfile
 import io
 from .common import Common
 from .clickhouse import Clickhouse
+from .db import make_db
 from .base_client import BaseMarketplaceClient
 
 class OZONreklama:
@@ -32,7 +33,7 @@ class OZONreklama:
         self.backfill_days = backfill_days
         self.err429 = False
         self.client = clickhouse_connect.get_client(host=host, port=port, username=username, password=password, database=database)
-        self.clickhouse = Clickhouse(bot_token, chat_list, message_type, host, port, username, password, database, start, self.add_name, self.err429, backfill_days, 'ozon_ads')
+        self.clickhouse = make_db(self.subd, bot_token, chat_list, message_type, host, port, username, password, database, start, self.add_name, self.err429, backfill_days, 'ozon_ads')
         self.api = BaseMarketplaceClient(
             base_url='https://api-performance.ozon.ru',
             headers={'Content-Type': 'application/json', 'Accept': 'application/json'},
@@ -41,6 +42,7 @@ class OZONreklama:
             common=self.common,
             name=self.add_name
         )
+        self.token_acquired_at = None
 
     def chunk_list(self, lst, chunk_size):
         for i in range(0, len(lst), chunk_size):
@@ -48,6 +50,8 @@ class OZONreklama:
 
     def get_token(self):
         try:
+            if self.token_acquired_at and (datetime.now() - self.token_acquired_at).total_seconds() < 1500:
+                return self.api.client.headers.get('Authorization', '')
             payload = {"client_id": self.clientid, "client_secret": self.token, "grant_type": "client_credentials"}
             saved_auth = self.api.client.headers.get('Authorization', '')
             if 'Authorization' in self.api.client.headers:
@@ -56,6 +60,7 @@ class OZONreklama:
             access_token = result.get('access_token')
             if access_token:
                 self.api.client.headers['Authorization'] = f'Bearer {access_token}'
+                self.token_acquired_at = datetime.now()
                 message = f"Платформа: OZON_ADS. Имя: {self.add_name}. Токен получен успешно"
                 self.common.log_func(self.bot_token, self.chat_list, message, 1)
             else:
@@ -137,21 +142,18 @@ class OZONreklama:
                 except:
                     pass
 
-            if set(sp_columns).issubset(df_filtered.columns):
-                add_to_table = 'sp'
-                df_filtered = df_filtered[sp_columns]
-            elif set(sku_columns).issubset(df_filtered.columns):
-                add_to_table = 'sku'
-                df_filtered = df_filtered[sku_columns]
-            elif set(banner_columns).issubset(df_filtered.columns):
-                add_to_table = 'banner'
-                df_filtered = df_filtered[banner_columns]
-            elif set(brand_shelf_columns).issubset(df_filtered.columns):
-                add_to_table = 'shelf'
-                df_filtered = df_filtered[brand_shelf_columns]
-            elif set(sis_columns).issubset(df_filtered.columns):
-                add_to_table = 'sis'
-                df_filtered = df_filtered[sis_columns]
+            columns_map = {
+                'sp': sp_columns,
+                'sku': sku_columns,
+                'banner': banner_columns,
+                'shelf': brand_shelf_columns,
+                'sis': sis_columns,
+            }
+            campaign_types = getattr(self, 'campaign_types', {})
+            add_to_table = campaign_types.get(campaign_id, 'unknown')
+            if add_to_table in columns_map:
+                target_columns = [c for c in columns_map[add_to_table] if c in df_filtered.columns]
+                df_filtered = df_filtered[target_columns]
 
             df_filtered['date'] = date_as_date
             df_filtered['id'] = campaign_id
@@ -161,6 +163,8 @@ class OZONreklama:
                 except:
                     pass
             rows = df_filtered.to_dict('records')
+            if add_to_table == 'unknown':
+                rows = self.common.transliterate_dict_keys_in_list(rows)
             return [rows, add_to_table]
         else:
             return [[], add_to_table]
@@ -225,7 +229,61 @@ class OZONreklama:
         except Exception as e:
             if hasattr(self, 'api') and self.api.err429:
                 self.err429 = True
+            status_code = getattr(getattr(e, 'response', None), 'status_code', None)
+            if status_code == 400:
+                return 400
             message = f'Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_data. Ошибка: {e}'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return None
+
+    def get_data_sp(self, campaigns, date):
+        if self.err429:
+            message = f"Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_data_sp. Ошибка 429, запрос не отправлен."
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return None
+        try:
+            date_from = f"{date}T00:00:00Z"
+            date_to = f"{date}T23:59:59Z"
+            payload = {
+                "campaignId": campaigns,
+                "dateFrom": date_from,
+                "dateTo": date_to
+            }
+            result = self.api._request('POST', '/api/client/statistics/campaign/product/csv', json=payload)
+            report_uuid = result['UUID']
+            for k in range(200):
+                time.sleep(60)
+                try:
+                    status = self.api._request('GET', f'/api/client/statistics/{report_uuid}')
+                    if status.get('state') == 'OK':
+                        break
+                except:
+                    pass
+            response = self.api._request_raw('GET', '/api/client/statistics/report', params={'UUID': report_uuid})
+            if len(campaigns) == 1:
+                text_df = self.text_to_df(response.text, date)
+                rows = text_df[0]
+                add_to_table = text_df[1]
+                if len(rows) > 0:
+                    table_name = f"ozon_ads_data_{add_to_table}_{self.add_name}"
+                    self._insert_with_auto_columns(rows, table_name, add_to_table)
+            else:
+                with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
+                    for file_name in zip_file.namelist():
+                        with zip_file.open(file_name) as file:
+                            content = file.read().decode('utf-8')
+                            text_df = self.text_to_df(content, date)
+                            rows = text_df[0]
+                            add_to_table = text_df[1]
+                            if len(rows) > 0:
+                                table_name = f"ozon_ads_data_{add_to_table}_{self.add_name}"
+                                self._insert_with_auto_columns(rows, table_name, add_to_table)
+                        time.sleep(2)
+            return 200
+        except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_data_sp. Ошибка: {e}'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return None
 
@@ -292,6 +350,23 @@ class OZONreklama:
         time.sleep(5)
 
         if names_code == 200:
+            adv_type_map = {
+                'SEARCH_PROMO': 'sp',
+                'SKU': 'sku',
+                'BANNER': 'banner',
+                'BRAND_SHELF': 'shelf',
+                'SIS': 'sis',
+            }
+            campaign_types_data = self.clickhouse.get_table_data(
+                f'ozon_ads_campaigns_{self.add_name}',
+                ['id', 'advObjectType']
+            )
+            self.campaign_types = {}
+            if campaign_types_data:
+                for row in campaign_types_data:
+                    adv_type = str(row.get('advObjectType', ''))
+                    self.campaign_types[int(row['id'])] = adv_type_map.get(adv_type, 'unknown')
+
             active_campaigns = self.get_campaigns_in_period(self.start)
 
             columns_query = f"SELECT name FROM system.columns WHERE database = '{self.database}' AND table = 'ozon_ads_campaigns_{self.add_name}'"
@@ -358,29 +433,45 @@ class OZONreklama:
                     campaigns_to_collect_rows = self.client.query(false_campaigns_by_date_query).result_rows
                     campaigns_to_collect = list(set([str(item[0]) for item in campaigns_to_collect_rows]))
 
-                    for chunk in self.chunk_list(campaigns_to_collect, 10):
-                        body = list(chunk)
-                        success_list = []
-                        for campaign in chunk:
-                            if difference.days >= 0:
-                                success_list.append((day, int(campaign), True))
-                        message = f'Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Кампании: {str(body)}. Начало загрузки.'
-                        self.common.log_func(self.bot_token, self.chat_list, message, 2)
+                    campaigns_by_type = {}
+                    for campaign in campaigns_to_collect:
+                        c_type = self.campaign_types.get(int(campaign), 'unknown')
+                        if c_type not in campaigns_by_type:
+                            campaigns_by_type[c_type] = []
+                        campaigns_by_type[c_type].append(campaign)
 
-                        try:
-                            self.get_token()
-                            ozon_json = self.get_data(body, sql_date)
-                            df_success = pd.DataFrame(success_list, columns=['date', 'campaignId', 'collect'])
-                            if ozon_json == 200:
-                                self.client.insert(f'ozon_ads_collection_{self.add_name}', [tuple(x) for x in df_success.to_numpy()], column_names=df_success.columns.tolist())
-                                message = f"Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Кампании: {str(body)}. Результат: ОК."
-                                self.common.log_func(self.bot_token, self.chat_list, message, 2)
-                                self.client.command(optimize_collection)
-                            if self.err429 == False:
-                                time.sleep(2)
-                        except Exception as e:
-                            message = f"Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Кампании: {str(body)}. Ошибка: {str(e)}."
-                            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                    for c_type, type_campaigns in campaigns_by_type.items():
+                        for chunk in self.chunk_list(type_campaigns, 10):
+                            body = list(chunk)
+                            success_list = []
+                            for campaign in chunk:
+                                if difference.days >= 0:
+                                    success_list.append((day, int(campaign), True))
+                            message = f'Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Тип: {c_type}. Кампании: {str(body)}. Начало загрузки.'
+                            self.common.log_func(self.bot_token, self.chat_list, message, 2)
+
+                            try:
+                                self.get_token()
+                                ozon_json = self.get_data(body, sql_date)
+                                df_success = pd.DataFrame(success_list, columns=['date', 'campaignId', 'collect'])
+                                if ozon_json == 200:
+                                    self.client.insert(f'ozon_ads_collection_{self.add_name}', [tuple(x) for x in df_success.to_numpy()], column_names=df_success.columns.tolist())
+                                    message = f"Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Тип: {c_type}. Кампании: {str(body)}. Результат: ОК."
+                                    self.common.log_func(self.bot_token, self.chat_list, message, 2)
+                                    self.client.command(optimize_collection)
+                                elif ozon_json == 400 and c_type == 'sp':
+                                    message = f'Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Кампании SEARCH_PROMO не поддерживаются через /api/client/statistics. Используйте отчёты perf_orders и perf_products.'
+                                    self.common.log_func(self.bot_token, self.chat_list, message, 2)
+                                    if len(success_list) > 0:
+                                        self.client.insert(f'ozon_ads_collection_{self.add_name}', [tuple(x) for x in df_success.to_numpy()], column_names=df_success.columns.tolist())
+                                elif ozon_json == 400:
+                                    message = f"Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Тип: {c_type}. Кампании: {str(body)}. Ошибка 400."
+                                    self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                                if self.err429 == False:
+                                    time.sleep(2)
+                            except Exception as e:
+                                message = f"Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Тип: {c_type}. Кампании: {str(body)}. Ошибка: {str(e)}."
+                                self.common.log_func(self.bot_token, self.chat_list, message, 3)
                     if self.err429 == False:
                         time.sleep(10)
 

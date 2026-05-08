@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from .common import Common
 from .clickhouse import Clickhouse
+from .db import make_db
 from .base_client import BaseMarketplaceClient
 
 class WBreklama:
@@ -28,7 +29,7 @@ class WBreklama:
         self.backfill_days = backfill_days
         self.err429 = False
         self.client = clickhouse_connect.get_client(host=host, port=port, username=username, password=password, database=database)
-        self.clickhouse = Clickhouse(bot_token, chat_list, message_type, host, port, username, password, database, start, self.add_name, self.err429, backfill_days, 'wb_ads')
+        self.clickhouse = make_db(self.subd, bot_token, chat_list, message_type, host, port, username, password, database, start, self.add_name, self.err429, backfill_days, 'wb_ads')
         self.api = BaseMarketplaceClient(
             base_url='https://advert-api.wildberries.ru',
             headers={'Authorization': self.token},
@@ -53,24 +54,27 @@ class WBreklama:
             rows = []
             yesterday_str = self.yesterday.strftime('%Y-%m-%dT00:00:00+03:00')
             for c in campaigns:
-                ts = c.get('timestamps', {})
-                status = c.get('status', 0)
+                ts = c.get('timestamps') or {}
+                status = c.get('status')
+                if status is None:
+                    status = 0
                 if status == -1:
                     end_time = (ts.get('deleted') or ts.get('updated') or '')
                 elif status in (7, 8):
                     end_time = (ts.get('updated') or '')
                 else:
                     end_time = yesterday_str
+                settings = c.get('settings') or {}
                 rows.append({
                     'endTime': end_time,
                     'createTime': (ts.get('created') or ''),
                     'changeTime': (ts.get('updated') or ''),
                     'startTime': (ts.get('started') or ts.get('created') or ''),
-                    'name': c.get('settings', {}).get('name', ''),
-                    'dailyBudget': 0,
-                    'advertId': c['id'],
+                    'name': settings.get('name') or '',
+                    'dailyBudget': c.get('dailyBudget') or 0,
+                    'advertId': c.get('id') or 0,
                     'status': status,
-                    'type': 9,
+                    'type': c.get('type') or 9,
                 })
             table_name = f"wb_ads_campaigns_{self.add_name}"
             text_columns_set = self.clickhouse.ch_text_columns_set(table_name)
@@ -126,8 +130,10 @@ class WBreklama:
                 rows = []
                 yesterday_str = end_date
                 for c in campaigns:
-                    ts = c.get('timestamps', {})
-                    status = c.get('status', 0)
+                    ts = c.get('timestamps') or {}
+                    status = c.get('status')
+                    if status is None:
+                        status = 0
                     created = (ts.get('created') or '')[:10]
                     if status == -1:
                         et = (ts.get('deleted') or ts.get('updated') or '')[:10]
@@ -136,7 +142,7 @@ class WBreklama:
                     else:
                         et = yesterday_str
                     rows.append({
-                        'advertId': c['id'],
+                        'advertId': c.get('id') or 0,
                         'createTime': created,
                         'endTime': et,
                     })
@@ -180,9 +186,13 @@ class WBreklama:
             return []
 
     def extract_df(self,in_json):
+        out_json = []
+        out_booster_json = []
+        df = pd.DataFrame()
+        booster_df = pd.DataFrame()
+        if not in_json:
+            return df, booster_df, out_json, out_booster_json
         try:
-            out_json = []
-            out_booster_json = []
             for advert in in_json:
                 extract_advert = advert['advertId']
                 try:
@@ -214,14 +224,14 @@ class WBreklama:
                                         'date': extract_date,
                                         'appType': extract_app,
                                         'nmId': extract_nm,
-                                        'views': nm['views'],
-                                        'clicks': nm['clicks'],
-                                        'sum': nm['sum'],
-                                        'atbs': nm['atbs'],
-                                        'orders': nm['orders'],
-                                        'shks': nm['shks'],
-                                        'sum_price': nm['sum_price'],
-                                        'name': nm['name']
+                                        'views': nm.get('views') or 0,
+                                        'clicks': nm.get('clicks') or 0,
+                                        'sum': nm.get('sum') or 0,
+                                        'atbs': nm.get('atbs') or 0,
+                                        'orders': nm.get('orders') or 0,
+                                        'shks': nm.get('shks') or 0,
+                                        'sum_price': nm.get('sum_price') or 0,
+                                        'name': nm.get('name') or ''
                                         })
                                 except Exception as e:
                                     message = f"Строка nm: {nm}. Не найдено: {e}"

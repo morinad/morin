@@ -1,6 +1,7 @@
 from .common import Common
 from .clickhouse import Clickhouse
-import requests
+from .db import make_db
+from .base_client import BaseMarketplaceClient
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -35,6 +36,14 @@ class VKbyDate:
         self.backfill_days = backfill_days
         self.platform = 'vk'
         self.err429 = False
+        self.api = BaseMarketplaceClient(
+            base_url='https://ads.vk.com',
+            headers={'Authorization': f'Bearer {self.token}'},
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
         self.source_dict = {
             'banners_stat': {
                 'platform': 'vk',
@@ -46,7 +55,7 @@ class VKbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_date',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 20
             },
                         'groups_stat': {
@@ -59,7 +68,7 @@ class VKbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_date',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 20
             },
             'campaigns_stat': {
@@ -72,7 +81,7 @@ class VKbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_date',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 20
             },
             'banners_list': {
@@ -85,7 +94,7 @@ class VKbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 20
             },
                         'groups_list': {
@@ -98,7 +107,7 @@ class VKbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 20
             },
             'campaigns_list': {
@@ -111,7 +120,7 @@ class VKbyDate:
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 20
             },
         }
@@ -119,7 +128,6 @@ class VKbyDate:
     def get_vk_statistics(self,endpoint, date1, date2, fields, offset):
         try:
             limit = 250
-            base_url = f"https://ads.vk.com/api/v3/statistics/{endpoint}/day.json"
             params = {
                 "date_from": date1,
                 "date_to": date2,
@@ -127,14 +135,11 @@ class VKbyDate:
                 "limit": limit,
                 "offset": offset,
             }
-            headers = {"Authorization": f"Bearer {self.token}"}
-            response = requests.get(base_url, params=params, headers=headers)
-            result = response.json()
-            code = response.status_code
-            if code != 200:
-                response.raise_for_status()
+            result = self.api._request('GET', f'/api/v3/statistics/{endpoint}/day.json', params=params)
             return result['items'], result['count']
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: VK. Имя: {self.add_name}. Даты: {str(date1)}-{str(date2)}. Функция: get_vk_statistics. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -161,16 +166,12 @@ class VKbyDate:
 
     def get_objects(self,report, offset):
         try:
-            base_url = f"https://ads.vk.com/api/v2/{report}.json"
             params = {"limit": 50, "offset": offset}
-            headers = {"Authorization": f"Bearer {self.token}"}
-            response = requests.get(base_url, params=params, headers=headers)
-            result = response.json()
-            code = response.status_code
-            if code != 200:
-                response.raise_for_status()
+            result = self.api._request('GET', f'/api/v2/{report}.json', params=params)
             return result['items'], result['count']
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: VK. Имя: {self.add_name}. Функция: get_objects. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -258,11 +259,10 @@ class VKbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return  message
 
-    # тип отчёта, дата -> данные в CH
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-                self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
+                self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],
@@ -278,12 +278,3 @@ class VKbyDate:
                     self.source_dict[report]['delay']
                 )
         self.common.send_logs_clear_anyway(self.bot_token, self.chat_list)
-
-
-
-
-
-
-
-
-

@@ -1,7 +1,8 @@
 from .common import Common
 from .clickhouse import Clickhouse
+from .db import make_db
+from .base_client import BaseMarketplaceClient
 from .ozon_reklama import OZONreklama
-import requests
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -40,6 +41,14 @@ class GCbyDate:
         self.backfill_days = 3
         self.platform = 'gc'
         self.err429 = False
+        self.api = BaseMarketplaceClient(
+            base_url=self.clientid.rstrip('/'),
+            headers={},
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
         self.source_dict = {
             'users': {
                 'platform': 'gc',
@@ -103,11 +112,10 @@ class GCbyDate:
             for dictionary in list_of_dicts:
                 new_dict = {}
                 for key, value in dictionary.items():
-                    # Транслитерируем ключ
                     english_key = transliterate_key(key)
                     new_dict[english_key] = value
-                dictionary.clear()  # Очищаем оригинальный словарь
-                dictionary.update(new_dict)  # Обновляем его новыми значениями с английскими ключами
+                dictionary.clear()
+                dictionary.update(new_dict)
             return list_of_dicts
         except Exception as e:
             message = f'Платформа: GC. Имя: {self.add_name}. Функция: translate_keys. Ошибка: {e}.'
@@ -121,8 +129,9 @@ class GCbyDate:
             querydata = {"key": self.token}
             if report == "groups":
                 report += r'/' +str(self.group_id) + r'/users'
-            url = f"{self.clientid}/pl/api/account/{report}?created_at[from]={self.start}".replace(r'//pl',r'/pl')
-            response = requests.get(url, params=querydata)
+            url_path = f'/pl/api/account/{report}'
+            params = {"key": self.token, "created_at[from]": self.start}
+            response = self.api.client.request('GET', url_path, params=params)
             code = response.status_code
             if code == 429:
                 self.err429 = True
@@ -136,10 +145,10 @@ class GCbyDate:
                         message = f"Попытка {attempt + 1}: Ответ: {str(response.json())}"
                         self.common.log_func(self.bot_token, self.chat_list, message, 1)
                         time.sleep(delay)
-                export_url = f"{self.clientid}/pl/api/account/exports/{export_id}".replace(r'//pl',r'/pl')
+                export_url_path = f'/pl/api/account/exports/{export_id}'
                 for attempt in range(max_attempts):
                     time.sleep(delay)
-                    export_response = requests.get(export_url, params=querydata)
+                    export_response = self.api.client.request('GET', export_url_path, params=querydata)
                     export_code = export_response.status_code
                     if export_code == 429:
                         self.err429 = True
@@ -157,6 +166,8 @@ class GCbyDate:
             else:
                 response.raise_for_status()
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: GC. Имя: {self.add_name}. Функция: get_data. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -213,7 +224,7 @@ class GCbyDate:
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-                self.clickhouse = Clickhouse( self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
+                self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],
@@ -229,5 +240,3 @@ class GCbyDate:
                     self.source_dict[report]['delay']
                 )
         self.common.send_logs_clear_anyway(self.bot_token, self.chat_list)
-
-

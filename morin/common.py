@@ -34,12 +34,15 @@ class Common:
             print(message)
             if not self.running_in_airflow():
                 log_dir = "/app/logs"
-                os.makedirs(log_dir, exist_ok=True)
-                log_file_path = os.path.join(log_dir, "log.txt")
-                if value >= self.value:
-                    with open(log_file_path, "a", encoding="utf-8") as log_file:
-                        log_file.write(message + "\n\n")
-                self.send_logs_clear(bot_token, chat_ids, message)
+                try:
+                    os.makedirs(log_dir, exist_ok=True)
+                    log_file_path = os.path.join(log_dir, "log.txt")
+                    if value >= self.value:
+                        with open(log_file_path, "a", encoding="utf-8") as log_file:
+                            log_file.write(message + "\n\n")
+                    self.send_logs_clear(bot_token, chat_ids, message)
+                except (PermissionError, OSError):
+                    pass
         except Exception as e:
             print(f'Ошибка log_func: {e}')
 
@@ -48,7 +51,10 @@ class Common:
             if not self.running_in_airflow():
                 log_file_path = "/app/logs/log.txt"
                 if not os.path.exists(log_file_path):
-                    os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+                    try:
+                        os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+                    except (PermissionError, OSError):
+                        return
                 with open(log_file_path, "r", encoding="utf-8") as log_file:
                     content = log_file.read()
                 if len(content) > 1000:
@@ -58,6 +64,8 @@ class Common:
                         log_file.write("")
                     print("Файл очищен, длина содержимого превышала 1000 символов.")
                 return content
+        except (PermissionError, OSError):
+            pass
         except Exception as e:
             print(f'Ошибка send_logs_clear: {e}')
 
@@ -67,6 +75,7 @@ class Common:
                 log_file_path = "/app/logs/log.txt"
                 if not os.path.exists(log_file_path):
                     print("Файл лога не существует.")
+                    return
                 with open(log_file_path, "r", encoding="utf-8") as log_file:
                     content = log_file.read()
                 if len(content.strip()) > 0:
@@ -76,6 +85,8 @@ class Common:
                         log_file.write("")
                     print("Файл очищен, длина содержимого превышала 1000 символов.")
                 return content
+        except (PermissionError, OSError):
+            pass
         except Exception as e:
             print(f'Ошибка send_logs_clear: {e}')
 
@@ -84,14 +95,18 @@ class Common:
             if not bot_token or not chat_ids:
                 return
             url = f'https://api.telegram.org/bot{bot_token}/sendMessage'
+            proxies = {'https': 'http://5TUMV6:sq3suS@191.102.147.15:8000'}
             for chat_id in chat_ids:
                 try:
                     params = {'chat_id': chat_id, 'text': self.message_text}
-                    response = requests.get(url, params=params)
+                    try:
+                        response = requests.get(url, params=params, proxies=proxies, timeout=15)
+                    except:
+                        response = requests.get(url, params=params, timeout=15)
                     if response.status_code != 200:
                         print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
                 except:
-                    print(f"Ошибка отправки сообщения в чат {chat_id}: {response.text}")
+                    print(f"Ошибка отправки сообщения в чат {chat_id}")
             self.message_text = ''
         except Exception as e:
             print(f'Ошибка send_logs: {e}')
@@ -137,8 +152,10 @@ class Common:
         return hash_object.hexdigest()[:10]  # Возвращаем первые 10 символов хеша
 
     def transliterate_key(self, key):
+        import re
+        key = re.sub(r'%!\(EXTRA[^)]*\)', '', key)
         tr = translit(key, 'ru', reversed=True)
-        tr = tr.strip().replace('%','').replace(':','_').replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower().strip()
+        tr = tr.strip().replace('%','').replace('₽','').replace('№','').replace('"','').replace('«','').replace('»','').replace('!','').replace('=','').replace(':','_').replace(' ', '_').replace('-', '_').replace(",", '').replace("'", '').replace(".", '').replace("(",'').replace(")", '').lower().strip().strip('_')
         return tr
 
     def transliterate_dict_keys_in_list(self, dictionaries_list):
@@ -344,7 +361,7 @@ class Common:
                             df[column_name] = df[column_name].fillna(False)
                             df[column_name] = df[column_name].astype('bool')
                         elif expected_type in ['Float64']:
-                            df[column_name] = pd.to_numeric(df[column_name], errors='raise').astype('float64')
+                            df[column_name] = pd.to_numeric(df[column_name], errors='coerce').astype('float64')
                             df[column_name] = df[column_name].fillna(0)
                         elif expected_type in ['String']:
                             df[column_name] = df[column_name].astype(str)
@@ -354,6 +371,14 @@ class Common:
                     except Exception as e:
                         message = f"Функция: check_and_convert_types. Ошибка при преобразовании столбца '{column_name}': {e}"
                         self.log_func(self.bot_token, self.chat_list, message, 3)
+            for col in df.columns:
+                if df[col].isna().any():
+                    if df[col].dtype in ['float64', 'int64']:
+                        df[col] = df[col].fillna(0)
+                    elif df[col].dtype == 'bool':
+                        df[col] = df[col].fillna(False)
+                    else:
+                        df[col] = df[col].fillna('')
             df['timeStamp'] = self.now
             message = f'Функция: check_and_convert_types. Датафрейм успешно преобразован'
             self.log_func(self.bot_token, self.chat_list, message, 2)

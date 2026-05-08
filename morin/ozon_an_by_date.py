@@ -1,6 +1,7 @@
 from .common import Common
 from .clickhouse import Clickhouse
-import requests
+from .db import make_db
+from .base_client import BaseMarketplaceClient
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -42,6 +43,18 @@ class OZONANbyDate:
         self.metrics = metrics
         self.dim = [d.strip() for d in self.dimensions.split(',')]
         self.met = [m.strip() for m in self.metrics.split(',')]
+        self.api = BaseMarketplaceClient(
+            base_url='https://api-seller.ozon.ru',
+            headers={
+                'Content-Type': 'application/json',
+                'Api-Key': self.token,
+                'Client-Id': self.clientid
+            },
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
         self.source_dict = {
             'analytics': {
                 'platform': 'ozonan',
@@ -65,12 +78,6 @@ class OZONANbyDate:
             offset = 0
             result_all = []
             for k in range(25):
-                url = "https://api-seller.ozon.ru/v1/analytics/data"
-                headers = {
-                    "Content-Type": "application/json",
-                    "Api-Key": self.token,
-                    "Client-Id": self.clientid
-                }
                 payload = {
                     "date_from": date,
                     "date_to": date,
@@ -80,14 +87,7 @@ class OZONANbyDate:
                     "dimension": self.dim,
                     "sort": [{"key": self.met[0], "order": "DESC"}]
                 }
-                response = requests.post(url, headers=headers, json=payload)
-                code = response.status_code
-                print(code)
-                if code == 429:
-                    self.err429 = True
-                if code != 200:
-                    response.raise_for_status()
-                res_json = response.json()
+                res_json = self.api._request('POST', '/v1/analytics/data', json=payload)
                 data = res_json.get('result', {}).get('data', [])
                 if len(data) == 0:
                     break
@@ -116,6 +116,8 @@ class OZONANbyDate:
             return list_with_date
 
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: OZONAN. Имя: {self.add_name}. Дата: {date}. Функция: get_analytics. Ошибка: {e}'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return {"error": str(e)}
@@ -124,7 +126,7 @@ class OZONANbyDate:
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-                self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
+                self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],

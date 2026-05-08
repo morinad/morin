@@ -1,6 +1,7 @@
 from .common import Common
 from .clickhouse import Clickhouse
-import requests
+from .db import make_db
+from .base_client import BaseMarketplaceClient
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -35,6 +36,14 @@ class BTRXbyDate:
         self.backfill_days = backfill_days
         self.platform = 'btrx'
         self.err429 = False
+        self.api = BaseMarketplaceClient(
+            base_url=self.webhook_link.rstrip('/'),
+            headers={},
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
         self.source_dict = {
             'leads': {
                 'platform': 'btrx',
@@ -46,7 +55,7 @@ class BTRXbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
                         'contacts': {
@@ -59,7 +68,7 @@ class BTRXbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
             'deals': {
@@ -72,7 +81,7 @@ class BTRXbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
             'leads_changes': {
@@ -85,7 +94,7 @@ class BTRXbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
             'contacts_changes': {
@@ -98,7 +107,7 @@ class BTRXbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
             'deals_changes': {
@@ -111,7 +120,7 @@ class BTRXbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 10
             },
         }
@@ -123,17 +132,18 @@ class BTRXbyDate:
             id0 = '0'
             while True:
                 print(f'offset: {str(offset)}')
-                url = f'{self.webhook_link}/{report}?limit=50&start={offset}&filter[>{filter_column}]={date1}T00:00:00&filter[<{filter_column}]={date2}T23:59:59'
-                response = requests.get(url)
-                code =       response.status_code
-                if code != 200:
-                    response.raise_for_status()
-                else:
-                    data = response.json()['result']
-                    id1 = str(data[0]['ID']).strip()
-                    if id0 == id1:
-                        break
-                    all_leads += data
+                params = {
+                    'limit': 50,
+                    'start': offset,
+                    f'filter[>{filter_column}]': f'{date1}T00:00:00',
+                    f'filter[<{filter_column}]': f'{date2}T23:59:59'
+                }
+                result = self.api._request('GET', f'/{report}', params=params)
+                data = result['result']
+                id1 = str(data[0]['ID']).strip()
+                if id0 == id1:
+                    break
+                all_leads += data
                 if len(data) < 50:
                     break
                 offset += 50
@@ -141,6 +151,8 @@ class BTRXbyDate:
                 id0 = id1
             return all_leads
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: BTRX. Имя: {self.add_name}. Даты: {str(date1)}-{str(date2)}. Функция: get_bitrix_data. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -218,11 +230,10 @@ class BTRXbyDate:
 
 
 
-    # тип отчёта, дата -> данные в CH
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-                self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
+                self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],
@@ -237,12 +248,3 @@ class BTRXbyDate:
                     self.source_dict[report]['frequency'],
                     self.source_dict[report]['delay']
                 )
-
-
-
-
-
-
-
-
-

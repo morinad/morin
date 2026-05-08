@@ -1,6 +1,7 @@
 from .common import Common
 from .clickhouse import Clickhouse
-import requests
+from .db import make_db
+from .base_client import BaseMarketplaceClient
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -42,6 +43,18 @@ class ALFAbyDate:
         self.backfill_days = backfill_days
         self.platform = 'alfa'
         self.err429 = False
+        self.api = BaseMarketplaceClient(
+            base_url=self.main_url.rstrip('/'),
+            headers={
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-APP-KEY': self.xappkey
+            },
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
         self.source_dict = {
             'branch': {
                 'platform': 'alfa',
@@ -53,7 +66,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'location': {
@@ -66,7 +79,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'room': {
@@ -79,7 +92,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'sms': {
@@ -92,7 +105,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'mail': {
@@ -105,7 +118,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'call': {
@@ -118,7 +131,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'all_sms': {
@@ -131,7 +144,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'all_mail': {
@@ -144,7 +157,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'all_call': {
@@ -157,7 +170,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'communication': {
@@ -170,7 +183,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'user': {
@@ -183,7 +196,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'lead_reject': {
@@ -196,7 +209,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'customer_reject': {
@@ -209,7 +222,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'task_null': {
@@ -222,7 +235,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'tariff': {
@@ -235,7 +248,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'teacher': {
@@ -248,7 +261,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'customer_tariff': {
@@ -261,7 +274,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'bonus': {
@@ -274,7 +287,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'cgi': {
@@ -287,7 +300,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'teacher_hour': {
@@ -300,7 +313,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'teacher_rate': {
@@ -313,7 +326,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'subject': {
@@ -326,7 +339,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'study_status': {
@@ -339,7 +352,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'discount': {
@@ -352,7 +365,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'lead_status': {
@@ -365,7 +378,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'lead_source': {
@@ -378,7 +391,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'customer': {
@@ -391,7 +404,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'regular_lesson': {
@@ -404,7 +417,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'delete_all',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'group': {
@@ -417,7 +430,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'pay': {
@@ -430,7 +443,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'log': {
@@ -443,7 +456,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'fresh_log': {
@@ -456,7 +469,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'task': {
@@ -469,7 +482,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'lesson': {
@@ -482,7 +495,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'future_lesson': {
@@ -495,7 +508,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'update_customer': {
@@ -508,7 +521,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'update_group': {
@@ -521,7 +534,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'update_pay': {
@@ -534,7 +547,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'update_lesson': {
@@ -547,7 +560,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': True,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'all_customer': {
@@ -560,7 +573,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'all_regular_lesson': {
@@ -573,7 +586,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'all_group': {
@@ -586,7 +599,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'all_pay': {
@@ -599,7 +612,7 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
             'all_lesson': {
@@ -612,64 +625,47 @@ class ALFAbyDate:
                 'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
                 'history': False,
-                'frequency': 'daily',  # '2dayOfMonth,Friday'
+                'frequency': 'daily',
                 'delay': 1
             },
         }
 
     def auth(self):
         try:
-            url = f"{self.main_url.rstrip('/')}/v2api/auth/login"
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "X-APP-KEY": self.xappkey
-            }
-            data = {
-                "email": self.email,
-                "api_key": self.token
-            }
-            response = requests.post(url, headers=headers, data=json.dumps(data))
-            code = response.status_code
-            if code != 200:
-                response.raise_for_status()
-            else:
-                result = response.json()
-                self.access_token = result.get("token")
+            data = {"email": self.email, "api_key": self.token}
+            result = self.api._request('POST', '/v2api/auth/login', json=data)
+            self.access_token = result.get("token")
+            self.api.client.headers['X-ALFACRM-TOKEN'] = self.access_token
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Функция: auth. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
 
 
-    def get_basic(self,url,filter_1=None, filter_2=None,filter_3=None, filter_4=None):
+    def get_basic(self, url, filter_1=None, filter_2=None, filter_3=None, filter_4=None):
         try:
             all_data = []
-            detector = True
             id0 = 0
             page = 0
-            url = f"{self.main_url.rstrip('/')}/{url}"
-            headers = {
-                "X-ALFACRM-TOKEN": self.access_token,
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            }
+            endpoint = f'/{url}'
             while True:
                 payload = {"page": page}
                 if filter_1:
                     payload = payload | filter_1
-                if filter_2 :
+                if filter_2:
                     payload = payload | filter_2
                 if filter_3:
                     payload = payload | filter_3
                 if filter_4:
                     payload = payload | filter_4
-                response = requests.post(url, headers=headers, data=json.dumps(payload))
+                response = self.api.client.request('POST', endpoint, json=payload)
                 code = response.status_code
                 if code == 401:
                     self.auth()
                     time.sleep(1)
-                    response = requests.post(url, headers=headers, data=json.dumps(payload))
+                    response = self.api.client.request('POST', endpoint, json=payload)
                     code = response.status_code
                 if code != 200:
                     response.raise_for_status()
@@ -677,7 +673,7 @@ class ALFAbyDate:
                     result = response.json()
                     data = result['items']
                     count = math.ceil(int(result['total'])/50)
-                    print(f'URL: {url}. Всего страниц: {str(count)}. Страница: {str(page)}.' )
+                    print(f'URL: {url}. Всего страниц: {str(count)}. Страница: {str(page)}.')
                     if len(data) > 0:
                         id1 = int(data[0]['id'])
                         if id0 == id1:
@@ -685,30 +681,27 @@ class ALFAbyDate:
                         all_data += data
                 if len(data) < 50:
                     break
-                page +=1
+                page += 1
                 time.sleep(0.7)
                 id0 = id1
             return self.common.replace_keys_in_data(all_data)
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Функция: get_basic. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
 
-    def get_basic_bonus(self,url):
+    def get_basic_bonus(self, url):
         try:
             all_data = []
-            url = f"{self.main_url.rstrip('/')}/{url}"
-            headers = {
-                "X-ALFACRM-TOKEN": self.access_token,
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            }
-            response = requests.post(url, headers=headers)
+            endpoint = f'/{url}'
+            response = self.api.client.request('POST', endpoint)
             code = response.status_code
             if code == 401:
                 self.auth()
                 time.sleep(1)
-                response = requests.post(url, headers=headers)
+                response = self.api.client.request('POST', endpoint)
                 code = response.status_code
             if code != 200:
                 response.raise_for_status()
@@ -718,6 +711,8 @@ class ALFAbyDate:
                 all_data.append(result)
             return all_data
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Функция: get_basic_bonus. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -730,6 +725,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_branch. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -741,6 +738,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_subject. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -752,6 +751,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_study_status. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -765,6 +766,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_room. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -778,6 +781,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sms. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -791,6 +796,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_mail. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -804,6 +811,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_call. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -817,6 +826,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_sms. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -830,6 +841,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_mail. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -843,6 +856,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_call. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -850,7 +865,7 @@ class ALFAbyDate:
     def get_communication(self, date):
         try:
             final_result = []
-            self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port,
+            self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port,
                                          self.username, self.password,
                                          self.database, self.start, self.add_name, self.err429, self.backfill_days,
                                          self.platform)
@@ -862,6 +877,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_communication. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -875,6 +892,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_customer_reject. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -882,7 +901,7 @@ class ALFAbyDate:
     def get_customer_tariff(self, date):
         try:
             final_result = []
-            self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port,
+            self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port,
                                          self.username, self.password,
                                          self.database, self.start, self.add_name, self.err429, self.backfill_days,
                                          self.platform)
@@ -894,6 +913,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_customer_tariff. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -901,7 +922,7 @@ class ALFAbyDate:
     def get_bonus(self, date):
         try:
             final_result = []
-            self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port,
+            self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port,
                                          self.username, self.password,
                                          self.database, self.start, self.add_name, self.err429, self.backfill_days,
                                          self.platform)
@@ -913,6 +934,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_bonus. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -920,7 +943,7 @@ class ALFAbyDate:
     def get_cgi(self, date):
         try:
             final_result = []
-            self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port,
+            self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port,
                                          self.username, self.password,
                                          self.database, self.start, self.add_name, self.err429, self.backfill_days,
                                          self.platform)
@@ -932,6 +955,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_cgi. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -945,6 +970,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_lead_reject. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -958,6 +985,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_user. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -970,6 +999,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_lead_status. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -980,6 +1011,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_discount. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -990,6 +1023,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_lead_source. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1003,6 +1038,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_location. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1016,6 +1053,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_group. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1029,6 +1068,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_customer. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1041,6 +1082,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_regular_lesson. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1053,6 +1096,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_tariff. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1065,6 +1110,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_task. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1079,6 +1126,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_task_null. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1095,6 +1144,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_lesson. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1109,6 +1160,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_future_lesson. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1122,6 +1175,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_pay. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1135,6 +1190,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_log. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1148,6 +1205,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_fresh_log. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1161,6 +1220,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: update_customer. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1174,6 +1235,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: update_group. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1192,6 +1255,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: update_lesson. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1205,6 +1270,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: update_pay. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1218,6 +1285,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: all_customer. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1230,6 +1299,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: all_regular_lesson. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1243,6 +1314,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: all_group. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1257,6 +1330,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: all_lesson. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1270,6 +1345,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: all_pay. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1283,6 +1360,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_teacher. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1296,6 +1375,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_teacher_rate. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1309,6 +1390,8 @@ class ALFAbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_teacher_hour. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -1318,7 +1401,7 @@ class ALFAbyDate:
         self.auth()
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-            self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port,
+            self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port,
                                          self.username, self.password,
                                          self.database, self.start, self.add_name, self.err429, self.backfill_days,
                                          self.platform)

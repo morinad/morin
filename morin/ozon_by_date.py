@@ -1,5 +1,6 @@
 from .common import Common
 from .clickhouse import Clickhouse
+from .db import make_db
 from .ozon_reklama import OZONreklama
 from .base_client import BaseMarketplaceClient
 import requests
@@ -262,6 +263,58 @@ class OZONbyDate:
             'frequency': 'daily',  # '2,Friday'
             'delay': 30
         },
+            'perf_orders': {
+                'platform': 'ozon',
+                'report_name': 'perf_orders',
+                'upload_table': 'ads_orders',
+                'func_name': self.get_perf_orders,
+                'uniq_columns': 'date,id_zakaza,sku,artikul',
+                'partitions': 'date',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'perf_products': {
+                'platform': 'ozon',
+                'report_name': 'perf_products',
+                'upload_table': 'ads_products',
+                'func_name': self.get_perf_products,
+                'uniq_columns': 'date,sku',
+                'partitions': 'date',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'perf_orders_all': {
+                'platform': 'ozon',
+                'report_name': 'perf_orders_all',
+                'upload_table': 'ads_orders_all',
+                'func_name': self.get_perf_orders_all,
+                'uniq_columns': 'date,id_zakaza,sku,artikul',
+                'partitions': 'date',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'perf_products_all': {
+                'platform': 'ozon',
+                'report_name': 'perf_products_all',
+                'upload_table': 'ads_products_all',
+                'func_name': self.get_perf_products_all,
+                'uniq_columns': 'date',
+                'partitions': 'date',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',
+                'delay': 30
+            },
         }
 
     def _log_ok(self, func_name, date=''):
@@ -274,6 +327,118 @@ class OZONbyDate:
         message = f'Платформа: {self.platform.upper()}. Имя: {self.add_name}. Дата: {date}. Функция: {func_name}. Ошибка: {error}.'
         self.common.log_func(self.bot_token, self.chat_list, message, 3)
         return message
+
+    def _init_perf_api(self):
+        if not hasattr(self, 'perf_api'):
+            self.perf_api = BaseMarketplaceClient(
+                base_url='https://api-performance.ozon.ru',
+                headers={'Content-Type': 'application/json', 'Accept': 'application/json'},
+                bot_token=self.bot_token,
+                chat_list=self.chat_list,
+                common=self.common,
+                name=self.add_name
+            )
+            self.perf_token_acquired_at = None
+
+    def _get_perf_token(self):
+        self._init_perf_api()
+        if self.perf_token_acquired_at and (datetime.now() - self.perf_token_acquired_at).total_seconds() < 1500:
+            return
+        try:
+            saved_auth = self.perf_api.client.headers.get('Authorization', '')
+            if 'Authorization' in self.perf_api.client.headers:
+                del self.perf_api.client.headers['Authorization']
+            payload = {"client_id": self.clientid, "client_secret": self.token, "grant_type": "client_credentials"}
+            result = self.perf_api._request('POST', '/api/client/token', json=payload)
+            access_token = result.get('access_token')
+            if access_token:
+                self.perf_api.client.headers['Authorization'] = f'Bearer {access_token}'
+                self.perf_token_acquired_at = datetime.now()
+            else:
+                if saved_auth:
+                    self.perf_api.client.headers['Authorization'] = saved_auth
+        except Exception as e:
+            self._log_err('_get_perf_token', '', e)
+
+    def _get_performance_report(self, date, report_type):
+        try:
+            self._get_perf_token()
+            date_from = f"{date}T00:00:00Z"
+            date_to = f"{date}T23:59:59Z"
+            report_config = {
+                'order': {'url': '/api/client/statistic/orders/generate', 'method': 'POST', 'mode': 'body'},
+                'product': {'url': '/api/client/statistic/products/generate', 'method': 'POST', 'mode': 'body'},
+                'order_all': {'url': '/api/client/statistics/all_sku_promo/orders/generate', 'method': 'GET', 'mode': 'querybounds'},
+                'product_all': {'url': '/api/client/statistics/all_sku_promo/products/generate', 'method': 'GET', 'mode': 'querybounds'},
+            }
+            cfg = report_config.get(report_type)
+            if not cfg:
+                return []
+
+            if cfg['mode'] == 'body':
+                result = self.perf_api._request(cfg['method'], cfg['url'], json={"from": date_from, "to": date_to})
+            else:
+                result = self.perf_api._request(cfg['method'], cfg['url'], params={'timeBounds.from': date_from, 'timeBounds.to': date_to})
+            report_uuid = result.get('UUID') or result.get('result')
+            if not report_uuid:
+                self._log_err(f'_get_performance_report ({report_type})', date, f'UUID не получен. Ответ: {result}')
+                return []
+
+            self._log_ok(f'_get_performance_report ({report_type})', date)
+
+            for k in range(60):
+                time.sleep(10)
+                try:
+                    status = self.perf_api._request('GET', f'/api/client/statistics/{report_uuid}')
+                    if status.get('state') == 'OK':
+                        break
+                except:
+                    pass
+
+            response = self.perf_api._request_raw('GET', '/api/client/statistics/report', params={'UUID': report_uuid})
+            csv_text = response.text
+            if not csv_text.strip():
+                return []
+
+            csv_lines = csv_text.splitlines()
+            if len(csv_lines) <= 1:
+                return []
+            csv_data = '\n'.join(csv_lines[1:])
+            df = pd.read_csv(StringIO(csv_data), sep=';')
+            if df.empty:
+                return []
+
+            first_col = df.columns[0]
+            df = df[df[first_col].astype(str) != 'Всего']
+            if df.empty:
+                return []
+
+            df['date'] = date
+            for col in df.columns:
+                try:
+                    df[col] = df[col].astype(str).str.replace(',', '.')
+                except:
+                    pass
+
+            rows = df.to_dict('records')
+            rows = self.common.transliterate_dict_keys_in_list(rows)
+            return rows
+        except Exception as e:
+            if hasattr(self, 'perf_api') and hasattr(self.perf_api, 'err429') and self.perf_api.err429:
+                self.err429 = True
+            return self._log_err(f'_get_performance_report ({report_type})', date, e)
+
+    def get_perf_orders(self, date):
+        return self._get_performance_report(date, 'order')
+
+    def get_perf_products(self, date):
+        return self._get_performance_report(date, 'product')
+
+    def get_perf_orders_all(self, date):
+        return self._get_performance_report(date, 'order_all')
+
+    def get_perf_products_all(self, date):
+        return self._get_performance_report(date, 'product_all')
 
     def create_postings_report(self, date, report_type):
         try:
@@ -730,7 +895,7 @@ class OZONbyDate:
                                            self.host, self.port, self.username, self.password,                                              self.database, self.start,  self.backfill_days)
                 self.reklama.ozon_reklama_collector()
             else:
-                self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
+                self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],

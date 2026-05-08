@@ -1,7 +1,12 @@
 from .common import Common
 from .clickhouse import Clickhouse
+from .db import make_db
 from .ozon_reklama import OZONreklama
-import requests
+from .base_client import BaseMarketplaceClient, HAS_HTTPX
+if HAS_HTTPX:
+    import httpx as _http_lib
+else:
+    import requests as _http_lib
 from datetime import datetime,timedelta
 import clickhouse_connect
 import pandas as pd
@@ -42,34 +47,38 @@ class DISKbyPage:
         self.backfill_days = 3
         self.platform = 'disk'
         self.err429 = False
+        self.api = BaseMarketplaceClient(
+            base_url='https://cloud-api.yandex.net',
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'OAuth {self.token}',
+                'Accept': 'application/json'
+            },
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name
+        )
 
     def download_file_from_yandex_disk(self,file_link):
         try:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"OAuth {self.token}",
-                "Accept": "application/json"
-            }
             query_data = {"path": file_link.replace("\\", "/")}
-            response = requests.get(
-                "https://cloud-api.yandex.net/v1/disk/resources/download",
-                headers=headers,
-                params=query_data
-            )
-            if response.status_code not in [200, 201]:
-                raise Exception(f"Ошибка при получении ссылки для скачивания: {response.status_code}")
-            result = response.json()
+            result = self.api._request('GET', '/v1/disk/resources/download', params=query_data)
             download_url = result.get("href")
             if not download_url:
                 raise Exception("Ссылка для скачивания не найдена в ответе")
-            file_response = requests.get(download_url, headers=headers)
-            if file_response.status_code != 200:
-                raise Exception(f"Ошибка при загрузке файла: {file_response.status_code}")
+            if HAS_HTTPX:
+                file_response = _http_lib.get(download_url, headers={'Authorization': f'OAuth {self.token}'}, timeout=60, follow_redirects=True)
+            else:
+                file_response = _http_lib.get(download_url, headers={'Authorization': f'OAuth {self.token}'}, timeout=60)
+            file_response.raise_for_status()
             file_content = file_response.content
             message = f'Платформа: DISK. Имя: {self.add_name}. Файл: {file_link}. Функция: download_file_from_yandex_disk. Результат: ОК.'
             self.common.log_func(self.bot_token, self.chat_list, message, 2)
             return file_content
         except Exception as e:
+            if hasattr(self.api, 'err429') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: DISK. Имя: {self.add_name}. Файл: {file_link}. Функция: download_file_from_yandex_disk. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -77,23 +86,11 @@ class DISKbyPage:
 
     def get_folder_contents(self,folder_link):
         try:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"OAuth {self.token}",
-                "Accept": "application/json"
-            }
             query_data = {
                 "path": folder_link.replace("\\", "/"),
                 "limit": 1000000
             }
-            response = requests.get(
-                "https://cloud-api.yandex.net/v1/disk/resources",
-                headers=headers,
-                params=query_data
-            )
-            if response.status_code != 200:
-                raise Exception(f"Ошибка при получении списка файлов: {response.status_code}")
-            result = response.json()
+            result = self.api._request('GET', '/v1/disk/resources', params=query_data)
             items = result.get("_embedded", {}).get("items", [])
             folder_contents = []
             for item in items:
@@ -102,6 +99,8 @@ class DISKbyPage:
             self.common.log_func(self.bot_token, self.chat_list, message, 2)
             return folder_contents
         except Exception as e:
+            if hasattr(self.api, 'err429') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: DISK. Имя: {self.add_name}. Файл: {folder_link}. Функция: get_folder_contents. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             raise
@@ -190,7 +189,7 @@ class DISKbyPage:
         delay = 10
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-            self.clickhouse = Clickhouse( self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
+            self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
             if report == 'file':
                 file_data = self.get_file()

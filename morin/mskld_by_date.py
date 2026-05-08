@@ -1,6 +1,7 @@
 from .common import Common
 from .clickhouse import Clickhouse
-import requests
+from .db import make_db
+from .base_client import BaseMarketplaceClient
 from datetime import datetime, timedelta
 import clickhouse_connect
 import pandas as pd
@@ -35,38 +36,31 @@ class MSKLDbyDate:
         self.backfill_days = backfill_days
         self.platform = 'mskld'
         self.err429 = False
-        self.base_url = "https://api.moysklad.ru/api/remap/1.2"
-        self.headers = {
-            "Content-Type": "application/json",
-            "Accept-Encoding": "gzip",
-            "Authorization": f"Bearer {token}"
-        }
+        self.api = BaseMarketplaceClient(
+            base_url='https://api.moysklad.ru/api/remap/1.2',
+            headers={
+                'Content-Type': 'application/json',
+                'Accept-Encoding': 'gzip',
+                'Authorization': f'Bearer {token}'
+            },
+            bot_token=self.bot_token,
+            chat_list=self.chat_list,
+            common=self.common,
+            name=self.add_name,
+            timeout=70.0
+        )
 
         self.source_dict = {
-            # Справочники
             'entity_assortment': {
                 'platform': 'mskld',
                 'report_name': 'entity_assortment',
                 'upload_table': 'entity_assortment',
                 'func_name': self.get_entity_assortment,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_assortment_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_assortment_history',
-                'upload_table': 'entity_assortment_history',
-                'func_name': self.get_entity_assortment,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -75,24 +69,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_bonustransaction',
                 'upload_table': 'entity_bonustransaction',
                 'func_name': self.get_entity_bonustransaction,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_bonustransaction_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_bonustransaction_history',
-                'upload_table': 'entity_bonustransaction_history',
-                'func_name': self.get_entity_bonustransaction,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -101,23 +82,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_bonusprogram',
                 'upload_table': 'entity_bonusprogram',
                 'func_name': self.get_entity_bonusprogram,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_bonusprogram_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_bonusprogram_history',
-                'upload_table': 'entity_bonusprogram_history',
-                'func_name': self.get_entity_bonusprogram,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -127,23 +95,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_currency',
                 'upload_table': 'entity_currency',
                 'func_name': self.get_entity_currency,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_currency_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_currency_history',
-                'upload_table': 'entity_currency_history',
-                'func_name': self.get_entity_currency,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -153,23 +108,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_webhook',
                 'upload_table': 'entity_webhook',
                 'func_name': self.get_entity_webhook,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_webhook_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_webhook_history',
-                'upload_table': 'entity_webhook_history',
-                'func_name': self.get_entity_webhook,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -179,23 +121,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_productfolder',
                 'upload_table': 'entity_productfolder',
                 'func_name': self.get_entity_productfolder,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_productfolder_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_productfolder_history',
-                'upload_table': 'entity_productfolder_history',
-                'func_name': self.get_entity_productfolder,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -205,23 +134,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_contract',
                 'upload_table': 'entity_contract',
                 'func_name': self.get_entity_contract,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_contract_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_contract_history',
-                'upload_table': 'entity_contract_history',
-                'func_name': self.get_entity_contract,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -231,23 +147,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_uom',
                 'upload_table': 'entity_uom',
                 'func_name': self.get_entity_uom,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_uom_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_uom_history',
-                'upload_table': 'entity_uom_history',
-                'func_name': self.get_entity_uom,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -257,24 +160,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_task',
                 'upload_table': 'entity_task',
                 'func_name': self.get_entity_task,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_task_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_task_history',
-                'upload_table': 'entity_task_history',
-                'func_name': self.get_entity_task,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -283,23 +173,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_saleschannel',
                 'upload_table': 'entity_saleschannel',
                 'func_name': self.get_entity_saleschannel,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_saleschannel_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_saleschannel_history',
-                'upload_table': 'entity_saleschannel_history',
-                'func_name': self.get_entity_saleschannel,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -309,23 +186,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_bundle',
                 'upload_table': 'entity_bundle',
                 'func_name': self.get_entity_bundle,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_bundle_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_bundle_history',
-                'upload_table': 'entity_bundle_history',
-                'func_name': self.get_entity_bundle,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -335,23 +199,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_counterparty',
                 'upload_table': 'entity_counterparty',
                 'func_name': self.get_entity_counterparty,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_counterparty_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_counterparty_history',
-                'upload_table': 'entity_counterparty_history',
-                'func_name': self.get_entity_counterparty,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -361,23 +212,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_variant',
                 'upload_table': 'entity_variant',
                 'func_name': self.get_entity_variant,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_variant_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_variant_history',
-                'upload_table': 'entity_variant_history',
-                'func_name': self.get_entity_variant,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -387,23 +225,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_group',
                 'upload_table': 'entity_group',
                 'func_name': self.get_entity_group,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_group_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_group_history',
-                'upload_table': 'entity_group_history',
-                'func_name': self.get_entity_group,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -413,23 +238,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_role',
                 'upload_table': 'entity_role',
                 'func_name': self.get_entity_role,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_role_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_role_history',
-                'upload_table': 'entity_role_history',
-                'func_name': self.get_entity_role,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -439,23 +251,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_project',
                 'upload_table': 'entity_project',
                 'func_name': self.get_entity_project,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_project_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_project_history',
-                'upload_table': 'entity_project_history',
-                'func_name': self.get_entity_project,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -465,23 +264,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_region',
                 'upload_table': 'entity_region',
                 'func_name': self.get_entity_region,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_region_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_region_history',
-                'upload_table': 'entity_region_history',
-                'func_name': self.get_entity_region,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -491,24 +277,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_consignment',
                 'upload_table': 'entity_consignment',
                 'func_name': self.get_entity_consignment,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_consignment_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_consignment_history',
-                'upload_table': 'entity_consignment_history',
-                'func_name': self.get_entity_consignment,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -517,23 +290,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_discount',
                 'upload_table': 'entity_discount',
                 'func_name': self.get_entity_discount,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_discount_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_discount_history',
-                'upload_table': 'entity_discount_history',
-                'func_name': self.get_entity_discount,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -543,23 +303,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_store',
                 'upload_table': 'entity_store',
                 'func_name': self.get_entity_store,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_store_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_store_history',
-                'upload_table': 'entity_store_history',
-                'func_name': self.get_entity_store,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -569,23 +316,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_employee',
                 'upload_table': 'entity_employee',
                 'func_name': self.get_entity_employee,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_employee_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_employee_history',
-                'upload_table': 'entity_employee_history',
-                'func_name': self.get_entity_employee,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -595,23 +329,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_expenseitem',
                 'upload_table': 'entity_expenseitem',
                 'func_name': self.get_entity_expenseitem,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_expenseitem_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_expenseitem_history',
-                'upload_table': 'entity_expenseitem_history',
-                'func_name': self.get_entity_expenseitem,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -621,23 +342,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_country',
                 'upload_table': 'entity_country',
                 'func_name': self.get_entity_country,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_country_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_country_history',
-                'upload_table': 'entity_country_history',
-                'func_name': self.get_entity_country,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -647,23 +355,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_product',
                 'upload_table': 'entity_product',
                 'func_name': self.get_entity_product,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_product_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_product_history',
-                'upload_table': 'entity_product_history',
-                'func_name': self.get_entity_product,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -673,23 +368,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_retailstore',
                 'upload_table': 'entity_retailstore',
                 'func_name': self.get_entity_retailstore,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_retailstore_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_retailstore_history',
-                'upload_table': 'entity_retailstore_history',
-                'func_name': self.get_entity_retailstore,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -699,23 +381,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_service',
                 'upload_table': 'entity_service',
                 'func_name': self.get_entity_service,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_service_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_service_history',
-                'upload_table': 'entity_service_history',
-                'func_name': self.get_entity_service,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -725,7 +394,7 @@ class MSKLDbyDate:
                 'report_name': 'entity_organization',
                 'upload_table': 'entity_organization',
                 'func_name': self.get_entity_organization,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
@@ -733,43 +402,16 @@ class MSKLDbyDate:
                 'frequency': 'daily',
                 'delay': 20
             },
-            'entity_organization_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_organization_history',
-                'upload_table': 'entity_organization_history',
-                'func_name': self.get_entity_organization,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            # Документы
             'entity_retaildrawercashin': {
                 'platform': 'mskld',
                 'report_name': 'entity_retaildrawercashin',
                 'upload_table': 'entity_retaildrawercashin',
                 'func_name': self.get_entity_retaildrawercashin,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_retaildrawercashin_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_retaildrawercashin_history',
-                'upload_table': 'entity_retaildrawercashin_history',
-                'func_name': self.get_entity_retaildrawercashin,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -778,24 +420,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_internalorder',
                 'upload_table': 'entity_internalorder',
                 'func_name': self.get_entity_internalorder,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_internalorder_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_internalorder_history',
-                'upload_table': 'entity_internalorder_history',
-                'func_name': self.get_entity_internalorder,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -804,24 +433,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_salesreturn',
                 'upload_table': 'entity_salesreturn',
                 'func_name': self.get_entity_salesreturn,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_salesreturn_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_salesreturn_history',
-                'upload_table': 'entity_salesreturn_history',
-                'func_name': self.get_entity_salesreturn,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -830,24 +446,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_purchasereturn',
                 'upload_table': 'entity_purchasereturn',
                 'func_name': self.get_entity_purchasereturn,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_purchasereturn_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_purchasereturn_history',
-                'upload_table': 'entity_purchasereturn_history',
-                'func_name': self.get_entity_purchasereturn,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -856,24 +459,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_prepaymentreturn',
                 'upload_table': 'entity_prepaymentreturn',
                 'func_name': self.get_entity_prepaymentreturn,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_prepaymentreturn_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_prepaymentreturn_history',
-                'upload_table': 'entity_prepaymentreturn_history',
-                'func_name': self.get_entity_prepaymentreturn,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -882,24 +472,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_paymentin',
                 'upload_table': 'entity_paymentin',
                 'func_name': self.get_entity_paymentin,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_paymentin_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_paymentin_history',
-                'upload_table': 'entity_paymentin_history',
-                'func_name': self.get_entity_paymentin,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -908,24 +485,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_commissionreportout',
                 'upload_table': 'entity_commissionreportout',
                 'func_name': self.get_entity_commissionreportout,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_commissionreportout_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_commissionreportout_history',
-                'upload_table': 'entity_commissionreportout_history',
-                'func_name': self.get_entity_commissionreportout,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -934,24 +498,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_retaildrawercashout',
                 'upload_table': 'entity_retaildrawercashout',
                 'func_name': self.get_entity_retaildrawercashout,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_retaildrawercashout_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_retaildrawercashout_history',
-                'upload_table': 'entity_retaildrawercashout_history',
-                'func_name': self.get_entity_retaildrawercashout,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -960,24 +511,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_processingorder',
                 'upload_table': 'entity_processingorder',
                 'func_name': self.get_entity_processingorder,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_processingorder_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_processingorder_history',
-                'upload_table': 'entity_processingorder_history',
-                'func_name': self.get_entity_processingorder,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -986,24 +524,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_customerorder',
                 'upload_table': 'entity_customerorder',
                 'func_name': self.get_entity_customerorder,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_customerorder_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_customerorder_history',
-                'upload_table': 'entity_customerorder_history',
-                'func_name': self.get_entity_customerorder,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1012,24 +537,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_purchaseorder',
                 'upload_table': 'entity_purchaseorder',
                 'func_name': self.get_entity_purchaseorder,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_purchaseorder_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_purchaseorder_history',
-                'upload_table': 'entity_purchaseorder_history',
-                'func_name': self.get_entity_purchaseorder,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1038,24 +550,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_inventory',
                 'upload_table': 'entity_inventory',
                 'func_name': self.get_entity_inventory,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_inventory_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_inventory_history',
-                'upload_table': 'entity_inventory_history',
-                'func_name': self.get_entity_inventory,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1064,24 +563,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_paymentout',
                 'upload_table': 'entity_paymentout',
                 'func_name': self.get_entity_paymentout,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_paymentout_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_paymentout_history',
-                'upload_table': 'entity_paymentout_history',
-                'func_name': self.get_entity_paymentout,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1090,24 +576,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_counterpartyadjustment',
                 'upload_table': 'entity_counterpartyadjustment',
                 'func_name': self.get_entity_counterpartyadjustment,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_counterpartyadjustment_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_counterpartyadjustment_history',
-                'upload_table': 'entity_counterpartyadjustment_history',
-                'func_name': self.get_entity_counterpartyadjustment,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1116,24 +589,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_enter',
                 'upload_table': 'entity_enter',
                 'func_name': self.get_entity_enter,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_enter_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_enter_history',
-                'upload_table': 'entity_enter_history',
-                'func_name': self.get_entity_enter,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1142,24 +602,24 @@ class MSKLDbyDate:
                 'report_name': 'entity_demand',
                 'upload_table': 'entity_demand',
                 'func_name': self.get_entity_demand,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
-            'entity_demand_history': {
+            'entity_demand_positions': {
                 'platform': 'mskld',
-                'report_name': 'entity_demand_history',
-                'upload_table': 'entity_demand_history',
-                'func_name': self.get_entity_demand,
-                'uniq_columns': 'timeStamp',
+                'report_name': 'entity_demand_positions',
+                'upload_table': 'entity_demand_positions',
+                'func_name': self.get_entity_demand_positions,
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1168,24 +628,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_move',
                 'upload_table': 'entity_move',
                 'func_name': self.get_entity_move,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_move_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_move_history',
-                'upload_table': 'entity_move_history',
-                'func_name': self.get_entity_move,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1194,24 +641,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_commissionreportin',
                 'upload_table': 'entity_commissionreportin',
                 'func_name': self.get_entity_commissionreportin,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_commissionreportin_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_commissionreportin_history',
-                'upload_table': 'entity_commissionreportin_history',
-                'func_name': self.get_entity_commissionreportin,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1220,23 +654,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_pricelist',
                 'upload_table': 'entity_pricelist',
                 'func_name': self.get_entity_pricelist,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_pricelist_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_pricelist_history',
-                'upload_table': 'entity_pricelist_history',
-                'func_name': self.get_entity_pricelist,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -1246,24 +667,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_prepayment',
                 'upload_table': 'entity_prepayment',
                 'func_name': self.get_entity_prepayment,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_prepayment_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_prepayment_history',
-                'upload_table': 'entity_prepayment_history',
-                'func_name': self.get_entity_prepayment,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1272,24 +680,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_supply',
                 'upload_table': 'entity_supply',
                 'func_name': self.get_entity_supply,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_supply_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_supply_history',
-                'upload_table': 'entity_supply_history',
-                'func_name': self.get_entity_supply,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1298,24 +693,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_cashin',
                 'upload_table': 'entity_cashin',
                 'func_name': self.get_entity_cashin,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_cashin_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_cashin_history',
-                'upload_table': 'entity_cashin_history',
-                'func_name': self.get_entity_cashin,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1324,24 +706,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_cashout',
                 'upload_table': 'entity_cashout',
                 'func_name': self.get_entity_cashout,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_cashout_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_cashout_history',
-                'upload_table': 'entity_cashout_history',
-                'func_name': self.get_entity_cashout,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1350,24 +719,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_retaildemand',
                 'upload_table': 'entity_retaildemand',
                 'func_name': self.get_entity_retaildemand,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_retaildemand_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_retaildemand_history',
-                'upload_table': 'entity_retaildemand_history',
-                'func_name': self.get_entity_retaildemand,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1376,24 +732,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_retailshift',
                 'upload_table': 'entity_retailshift',
                 'func_name': self.get_entity_retailshift,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_retailshift_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_retailshift_history',
-                'upload_table': 'entity_retailshift_history',
-                'func_name': self.get_entity_retailshift,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1402,24 +745,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_retailsalesreturn',
                 'upload_table': 'entity_retailsalesreturn',
                 'func_name': self.get_entity_retailsalesreturn,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_retailsalesreturn_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_retailsalesreturn_history',
-                'upload_table': 'entity_retailsalesreturn_history',
-                'func_name': self.get_entity_retailsalesreturn,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1428,24 +758,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_loss',
                 'upload_table': 'entity_loss',
                 'func_name': self.get_entity_loss,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_loss_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_loss_history',
-                'upload_table': 'entity_loss_history',
-                'func_name': self.get_entity_loss,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1454,24 +771,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_invoiceout',
                 'upload_table': 'entity_invoiceout',
                 'func_name': self.get_entity_invoiceout,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_invoiceout_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_invoiceout_history',
-                'upload_table': 'entity_invoiceout_history',
-                'func_name': self.get_entity_invoiceout,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1480,24 +784,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_invoicein',
                 'upload_table': 'entity_invoicein',
                 'func_name': self.get_entity_invoicein,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_invoicein_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_invoicein_history',
-                'upload_table': 'entity_invoicein_history',
-                'func_name': self.get_entity_invoicein,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1506,24 +797,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_factureout',
                 'upload_table': 'entity_factureout',
                 'func_name': self.get_entity_factureout,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_factureout_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_factureout_history',
-                'upload_table': 'entity_factureout_history',
-                'func_name': self.get_entity_factureout,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1532,24 +810,11 @@ class MSKLDbyDate:
                 'report_name': 'entity_facturein',
                 'upload_table': 'entity_facturein',
                 'func_name': self.get_entity_facturein,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_facturein_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_facturein_history',
-                'upload_table': 'entity_facturein_history',
-                'func_name': self.get_entity_facturein,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
@@ -1558,23 +823,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_processingplan',
                 'upload_table': 'entity_processingplan',
                 'func_name': self.get_entity_processingplan,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_processingplan_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_processingplan_history',
-                'upload_table': 'entity_processingplan_history',
-                'func_name': self.get_entity_processingplan,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -1584,23 +836,10 @@ class MSKLDbyDate:
                 'report_name': 'entity_processingplanfolder',
                 'upload_table': 'entity_processingplanfolder',
                 'func_name': self.get_entity_processingplanfolder,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
                 'merge_type': 'MergeTree',
                 'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_processingplanfolder_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_processingplanfolder_history',
-                'upload_table': 'entity_processingplanfolder_history',
-                'func_name': self.get_entity_processingplanfolder,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
                 'delay': 20
@@ -1610,28 +849,14 @@ class MSKLDbyDate:
                 'report_name': 'entity_processing',
                 'upload_table': 'entity_processing',
                 'func_name': self.get_entity_processing,
-                'uniq_columns': 'timeStamp',
+                'uniq_columns': 'id',
                 'partitions': '',
-                'merge_type': 'MergeTree',
-                'refresh_type': 'delete_all',
-                'history': False,
-                'frequency': 'daily',
-                'delay': 20
-            },
-            'entity_processing_history': {
-                'platform': 'mskld',
-                'report_name': 'entity_processing_history',
-                'upload_table': 'entity_processing_history',
-                'func_name': self.get_entity_processing,
-                'uniq_columns': 'timeStamp',
-                'partitions': '',
-                'merge_type': 'MergeTree',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
                 'refresh_type': 'nothing',
-                'history': False,
+                'history': True,
                 'frequency': 'daily',
                 'delay': 20
             },
-            # Отчеты
             'report_stock_all': {
                 'platform': 'mskld',
                 'report_name': 'report_stock_all',
@@ -2052,90 +1277,192 @@ class MSKLDbyDate:
         }
 
     def get_entity_size(self, entity_path: str) -> int:
-        """Получение количества записей в сущности"""
         try:
-            url = f"{self.base_url}/{entity_path}"
             params = {"limit": "1000", "offset": "0"}
-            response = requests.get(url, headers=self.headers, params=params)
-            code = response.status_code
-
-            if code == 429:
-                self.err429 = True
-                time.sleep(1)
-                return self.get_entity_size(entity_path)
-
-            if code == 200:
-                data = response.json()
-                return data.get("meta", {}).get("size", 0)
-            else:
-                response.raise_for_status()
-
+            response = self.api._request_raw('GET', f'/{entity_path}', params=params)
+            data = response.json()
+            return data.get("meta", {}).get("size", 0)
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Функция: get_entity_size. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_data_batch(self, entity_path: str, offset: int, limit: int = 1000) -> list:
-        """Получение батча данных"""
         try:
-            url = f"{self.base_url}/{entity_path}"
             params = {"limit": str(limit), "offset": str(offset)}
-            response = requests.get(url, headers=self.headers, params=params)
-            code = response.status_code
-
-            if code == 429:
-                self.err429 = True
-                time.sleep(1)
-                return self.get_data_batch(entity_path, offset, limit)
-
-            if code == 200:
-                data = response.json()
-                return data.get("rows", [])
-            else:
-                response.raise_for_status()
-
+            response = self.api._request_raw('GET', f'/{entity_path}', params=params)
+            data = response.json()
+            return data.get("rows", [])
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Функция: get_data_batch. Offset: {offset}. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_all_data(self, entity_path: str, start_offset: int = 0) -> list:
-        """Получение всех данных из МойСклад"""
         try:
-            # Получаем общий размер данных
             total_size = self.get_entity_size(entity_path)
             if total_size == 0:
                 return []
-
-            # Собираем все данные
             all_data = []
             limit = 1000
             current_offset = start_offset
-
             while current_offset < total_size:
                 batch_data = self.get_data_batch(entity_path, current_offset, limit)
                 if batch_data:
                     all_data.extend(batch_data)
                     current_offset += limit
-                    time.sleep(1)  # Пауза между запросами
+                    time.sleep(1)
                 else:
                     break
-
             return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_data)))
-
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Функция: get_all_data. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
-    # Все функции получения данных - примитивные, без фильтрации по датам
+    def get_all_data_with_filter(self, entity_path: str, filter_str: str) -> list:
+        try:
+            params = {"limit": "1000", "offset": "0", "filter": filter_str}
+            response = self.api._request_raw('GET', f'/{entity_path}', params=params)
+            data = response.json()
+            all_rows = data.get("rows", [])
+            next_href = data.get("meta", {}).get("nextHref")
+            while next_href:
+                time.sleep(1)
+                response = self.api._request_raw('GET', next_href)
+                data = response.json()
+                all_rows.extend(data.get("rows", []))
+                next_href = data.get("meta", {}).get("nextHref")
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_rows)))
+        except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: MSKLD. Имя: {self.add_name}. Функция: get_all_data_with_filter. Path: {entity_path}. Filter: {filter_str}. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_entity_full(self, entity_path: str) -> list:
+        try:
+            params = {"limit": "1000", "offset": "0"}
+            response = self.api._request_raw('GET', f'/{entity_path}', params=params)
+            data = response.json()
+            all_rows = data.get("rows", [])
+            next_href = data.get("meta", {}).get("nextHref")
+            while next_href:
+                time.sleep(1)
+                response = self.api._request_raw('GET', next_href)
+                data = response.json()
+                all_rows.extend(data.get("rows", []))
+                next_href = data.get("meta", {}).get("nextHref")
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_rows)))
+        except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: MSKLD. Имя: {self.add_name}. Функция: get_entity_full. Entity: {entity_path}. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_positions_by_parent(self, parent_path: str, parent_id: str, parent_id_field: str) -> list:
+        try:
+            params = {"limit": "1000", "offset": "0"}
+            response = self.api._request_raw('GET', f'/{parent_path}/{parent_id}/positions', params=params)
+            data = response.json()
+            all_rows = data.get("rows", [])
+            next_href = data.get("meta", {}).get("nextHref")
+            while next_href:
+                time.sleep(1)
+                response = self.api._request_raw('GET', next_href)
+                data = response.json()
+                all_rows.extend(data.get("rows", []))
+                next_href = data.get("meta", {}).get("nextHref")
+            for row in all_rows:
+                row[parent_id_field] = parent_id
+            return all_rows
+        except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: MSKLD. Имя: {self.add_name}. Функция: get_positions_by_parent. Parent: {parent_path}/{parent_id}. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return []
+
+    def get_positions_for_entities_by_date(self, parent_path: str, parent_id_field: str, date: str) -> list:
+        try:
+            if not date:
+                return []
+            parents = self.get_entity_by_updated(parent_path, date)
+            if isinstance(parents, str) or not parents:
+                return [] if not parents else parents
+            all_positions = []
+            for parent in parents:
+                parent_id = parent.get('id')
+                if not parent_id:
+                    continue
+                positions = self.get_positions_by_parent(parent_path, parent_id, parent_id_field)
+                if positions:
+                    all_positions.extend(positions)
+                time.sleep(0.2)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_positions)))
+        except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: MSKLD. Имя: {self.add_name}. Функция: get_positions_for_entities_by_date. Parent: {parent_path}. Дата: {date}. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_entity_demand_positions(self, date=''):
+        try:
+            final_result = self.get_positions_for_entities_by_date("entity/demand", "demandId", date)
+            message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_demand_positions. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_demand_positions. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_entity_by_updated(self, entity_path: str, date: str) -> list:
+        try:
+            if not date:
+                return []
+            date_from = f"{date} 00:00:00"
+            date_to = f"{date} 23:59:59"
+            filter_str = f"updated>={date_from};updated<={date_to}"
+            params = {"limit": "1000", "offset": "0", "filter": filter_str}
+            response = self.api._request_raw('GET', f'/{entity_path}', params=params)
+            data = response.json()
+            all_rows = data.get("rows", [])
+            next_href = data.get("meta", {}).get("nextHref")
+            while next_href:
+                time.sleep(1)
+                response = self.api._request_raw('GET', next_href)
+                data = response.json()
+                all_rows.extend(data.get("rows", []))
+                next_href = data.get("meta", {}).get("nextHref")
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_rows)))
+        except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: MSKLD. Имя: {self.add_name}. Функция: get_entity_by_updated. Entity: {entity_path}. Дата: {date}. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
     def get_entity_enter(self, date=''):
         try:
-            final_result = self.get_all_data("entity/enter")
+            final_result = self.get_entity_by_updated("entity/enter", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_enter. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_enter. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2143,33 +1470,39 @@ class MSKLDbyDate:
 
     def get_entity_counterpartyadjustment(self, date=''):
         try:
-            final_result = self.get_all_data("entity/counterpartyadjustment")
+            final_result = self.get_entity_by_updated("entity/counterpartyadjustment", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_counterpartyadjustment. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_counterpartyadjustment. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_paymentout(self, date=''):
         try:
-            final_result = self.get_all_data("entity/paymentout")
+            final_result = self.get_entity_by_updated("entity/paymentout", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_paymentout. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_paymentout. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_inventory(self, date=''):
         try:
-            final_result = self.get_all_data("entity/inventory")
+            final_result = self.get_entity_by_updated("entity/inventory", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_inventory. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_inventory. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2177,11 +1510,13 @@ class MSKLDbyDate:
 
     def get_entity_purchaseorder(self, date=''):
         try:
-            final_result = self.get_all_data("entity/purchaseorder")
+            final_result = self.get_entity_by_updated("entity/purchaseorder", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_purchaseorder. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_purchaseorder. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2189,11 +1524,13 @@ class MSKLDbyDate:
 
     def get_entity_customerorder(self, date=''):
         try:
-            final_result = self.get_all_data("entity/customerorder")
+            final_result = self.get_entity_by_updated("entity/customerorder", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_customerorder. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_customerorder. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2201,11 +1538,13 @@ class MSKLDbyDate:
 
     def get_entity_processingorder(self, date=''):
         try:
-            final_result = self.get_all_data("entity/processingorder")
+            final_result = self.get_entity_by_updated("entity/processingorder", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_processingorder. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_processingorder. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2213,22 +1552,26 @@ class MSKLDbyDate:
 
     def get_entity_retaildrawercashout(self, date=''):
         try:
-            final_result = self.get_all_data("entity/retaildrawercashout")
+            final_result = self.get_entity_by_updated("entity/retaildrawercashout", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retaildrawercashout. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retaildrawercashout. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_commissionreportout(self, date=''):
         try:
-            final_result = self.get_all_data("entity/commissionreportout")
+            final_result = self.get_entity_by_updated("entity/commissionreportout", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_commissionreportout. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_commissionreportout. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2236,11 +1579,13 @@ class MSKLDbyDate:
 
     def get_entity_paymentin(self, date=''):
         try:
-            final_result = self.get_all_data("entity/paymentin")
+            final_result = self.get_entity_by_updated("entity/paymentin", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_paymentin. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_paymentin. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2248,11 +1593,13 @@ class MSKLDbyDate:
 
     def get_entity_prepaymentreturn(self, date=''):
         try:
-            final_result = self.get_all_data("entity/prepaymentreturn")
+            final_result = self.get_entity_by_updated("entity/prepaymentreturn", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_prepaymentreturn. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_prepaymentreturn. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2260,341 +1607,403 @@ class MSKLDbyDate:
 
     def get_entity_assortment(self, date=''):
         try:
-            final_result = self.get_all_data("entity/assortment")
+            final_result = self.get_entity_by_updated("entity/assortment", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_assortment. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_assortment. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_bonustransaction(self, date=''):
         try:
-            final_result = self.get_all_data("entity/bonustransaction")
+            final_result = self.get_entity_by_updated("entity/bonustransaction", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_bonustransaction. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_bonustransaction. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_bonusprogram(self, date=''):
         try:
-            final_result = self.get_all_data("entity/bonusprogram")
+            final_result = self.get_entity_full("entity/bonusprogram")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_bonusprogram. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_bonusprogram. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_currency(self, date=''):
         try:
-            final_result = self.get_all_data("entity/currency")
+            final_result = self.get_entity_full("entity/currency")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_currency. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_currency. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_webhook(self, date=''):
         try:
-            final_result = self.get_all_data("entity/webhook")
+            final_result = self.get_entity_full("entity/webhook")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_webhook. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_webhook. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_productfolder(self, date=''):
         try:
-            final_result = self.get_all_data("entity/productfolder")
+            final_result = self.get_entity_full("entity/productfolder")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_productfolder. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_productfolder. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_contract(self, date=''):
         try:
-            final_result = self.get_all_data("entity/contract")
+            final_result = self.get_entity_full("entity/contract")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_contract. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_contract. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_uom(self, date=''):
         try:
-            final_result = self.get_all_data("entity/uom")
+            final_result = self.get_entity_full("entity/uom")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_uom. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_uom. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_task(self, date=''):
         try:
-            final_result = self.get_all_data("entity/task")
+            final_result = self.get_entity_by_updated("entity/task", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_task. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_task. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_saleschannel(self, date=''):
         try:
-            final_result = self.get_all_data("entity/saleschannel")
+            final_result = self.get_entity_full("entity/saleschannel")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_saleschannel. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_saleschannel. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_bundle(self, date=''):
         try:
-            final_result = self.get_all_data("entity/bundle")
+            final_result = self.get_entity_full("entity/bundle")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_bundle. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_bundle. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_counterparty(self, date=''):
         try:
-            final_result = self.get_all_data("entity/counterparty")
+            final_result = self.get_entity_full("entity/counterparty")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_counterparty. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_counterparty. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_variant(self, date=''):
         try:
-            final_result = self.get_all_data("entity/variant")
+            final_result = self.get_entity_full("entity/variant")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_variant. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_variant. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_group(self, date=''):
         try:
-            final_result = self.get_all_data("entity/group")
+            final_result = self.get_entity_full("entity/group")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_group. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_group. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_role(self, date=''):
         try:
-            final_result = self.get_all_data("entity/role")
+            final_result = self.get_entity_full("entity/role")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_role. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_role. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_project(self, date=''):
         try:
-            final_result = self.get_all_data("entity/project")
+            final_result = self.get_entity_full("entity/project")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_project. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_project. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_region(self, date=''):
         try:
-            final_result = self.get_all_data("entity/region")
+            final_result = self.get_entity_full("entity/region")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_region. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_region. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_consignment(self, date=''):
         try:
-            final_result = self.get_all_data("entity/consignment")
+            final_result = self.get_entity_by_updated("entity/consignment", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_consignment. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_consignment. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_discount(self, date=''):
         try:
-            final_result = self.get_all_data("entity/discount")
+            final_result = self.get_entity_full("entity/discount")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_discount. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_discount. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_store(self, date=''):
         try:
-            final_result = self.get_all_data("entity/store")
+            final_result = self.get_entity_full("entity/store")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_store. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_store. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_employee(self, date=''):
         try:
-            final_result = self.get_all_data("entity/employee")
+            final_result = self.get_entity_full("entity/employee")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_employee. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_employee. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_expenseitem(self, date=''):
         try:
-            final_result = self.get_all_data("entity/expenseitem")
+            final_result = self.get_entity_full("entity/expenseitem")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_expenseitem. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_expenseitem. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_country(self, date=''):
         try:
-            final_result = self.get_all_data("entity/country")
+            final_result = self.get_entity_full("entity/country")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_country. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_country. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_product(self, date=''):
         try:
-            final_result = self.get_all_data("entity/product")
+            final_result = self.get_entity_full("entity/product")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_product. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_product. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_retailstore(self, date=''):
         try:
-            final_result = self.get_all_data("entity/retailstore")
+            final_result = self.get_entity_full("entity/retailstore")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retailstore. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retailstore. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_service(self, date=''):
         try:
-            final_result = self.get_all_data("entity/service")
+            final_result = self.get_entity_full("entity/service")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_service. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_service. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_organization(self, date=''):
         try:
-            final_result = self.get_all_data("entity/organization")
+            final_result = self.get_entity_full("entity/organization")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_organization. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_organization. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_retaildrawercashin(self, date=''):
         try:
-            final_result = self.get_all_data("entity/retaildrawercashin")
+            final_result = self.get_entity_by_updated("entity/retaildrawercashin", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retaildrawercashin. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retaildrawercashin. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_internalorder(self, date=''):
         try:
-            final_result = self.get_all_data("entity/internalorder")
+            final_result = self.get_entity_by_updated("entity/internalorder", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_internalorder. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_internalorder. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_salesreturn(self, date=''):
         try:
-            final_result = self.get_all_data("entity/salesreturn")
+            final_result = self.get_entity_by_updated("entity/salesreturn", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_salesreturn. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_salesreturn. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_purchasereturn(self, date=''):
         try:
-            final_result = self.get_all_data("entity/purchasereturn")
+            final_result = self.get_entity_by_updated("entity/purchasereturn", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_purchasereturn. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_purchasereturn. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2606,13 +2015,15 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_stock_all. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_report_stock_all_moment(self, date):
         try:
-            final_result = self.get_all_data(f"report/stock/all?filter=moment={date} 12:00:00")
+            final_result = self.get_all_data_with_filter("report/stock/all", f"moment={date} 12:00:00")
             final_result_date = []
             for x in final_result:
                 x['date'] = date
@@ -2621,6 +2032,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result_date
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_stock_all_moment. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2628,7 +2041,7 @@ class MSKLDbyDate:
 
     def get_report_stock_bystore_moment(self, date):
         try:
-            final_result = self.get_all_data(f"report/stock/bystore?filter=moment={date} 12:00:00")
+            final_result = self.get_all_data_with_filter("report/stock/bystore", f"moment={date} 12:00:00")
             final_result_date = []
             for x in final_result:
                 x['date'] = date
@@ -2637,6 +2050,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result_date
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_stock_bystore_moment. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2644,7 +2059,7 @@ class MSKLDbyDate:
 
     def get_report_stock_all_current_moment(self, date):
         try:
-            final_result = self.get_all_data(f"report/stock/all/current?filter=moment={date} 12:00:00")
+            final_result = self.get_all_data_with_filter("report/stock/all/current", f"moment={date} 12:00:00")
             final_result_date = []
             for x in final_result:
                 x['date'] = date
@@ -2653,6 +2068,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result_date
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_stock_all_current_moment. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2660,7 +2077,7 @@ class MSKLDbyDate:
 
     def get_report_money_byaccount_moment(self, date):
         try:
-            final_result = self.get_all_data(f"report/money/byaccount?filter=moment={date} 12:00:00")
+            final_result = self.get_all_data_with_filter("report/money/byaccount", f"moment={date} 12:00:00")
             final_result_date = []
             for x in final_result:
                 x['date'] = date
@@ -2669,6 +2086,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result_date
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_money_byaccount_moment. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2681,6 +2100,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_audit. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2692,6 +2113,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_notification. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2703,215 +2126,255 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_notification_subscription. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_demand(self, date=''):
         try:
-            final_result = self.get_all_data("entity/demand")
+            final_result = self.get_entity_by_updated("entity/demand", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_demand. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_demand. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_move(self, date=''):
         try:
-            final_result = self.get_all_data("entity/move")
+            final_result = self.get_entity_by_updated("entity/move", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_move. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_move. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_commissionreportin(self, date=''):
         try:
-            final_result = self.get_all_data("entity/commissionreportin")
+            final_result = self.get_entity_by_updated("entity/commissionreportin", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_commissionreportin. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_commissionreportin. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_pricelist(self, date=''):
         try:
-            final_result = self.get_all_data("entity/pricelist")
+            final_result = self.get_entity_full("entity/pricelist")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_pricelist. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_pricelist. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_prepayment(self, date=''):
         try:
-            final_result = self.get_all_data("entity/prepayment")
+            final_result = self.get_entity_by_updated("entity/prepayment", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_prepayment. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_prepayment. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_supply(self, date=''):
         try:
-            final_result = self.get_all_data("entity/supply")
+            final_result = self.get_entity_by_updated("entity/supply", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_supply. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_supply. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_cashin(self, date=''):
         try:
-            final_result = self.get_all_data("entity/cashin")
+            final_result = self.get_entity_by_updated("entity/cashin", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_cashin. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_cashin. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_cashout(self, date=''):
         try:
-            final_result = self.get_all_data("entity/cashout")
+            final_result = self.get_entity_by_updated("entity/cashout", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_cashout. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_cashout. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_retaildemand(self, date=''):
         try:
-            final_result = self.get_all_data("entity/retaildemand")
+            final_result = self.get_entity_by_updated("entity/retaildemand", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retaildemand. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retaildemand. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_retailshift(self, date=''):
         try:
-            final_result = self.get_all_data("entity/retailshift")
+            final_result = self.get_entity_by_updated("entity/retailshift", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retailshift. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retailshift. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_retailsalesreturn(self, date=''):
         try:
-            final_result = self.get_all_data("entity/retailsalesreturn")
+            final_result = self.get_entity_by_updated("entity/retailsalesreturn", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retailsalesreturn. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_retailsalesreturn. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_loss(self, date=''):
         try:
-            final_result = self.get_all_data("entity/loss")
+            final_result = self.get_entity_by_updated("entity/loss", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_loss. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_loss. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_invoiceout(self, date=''):
         try:
-            final_result = self.get_all_data("entity/invoiceout")
+            final_result = self.get_entity_by_updated("entity/invoiceout", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_invoiceout. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_invoiceout. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_invoicein(self, date=''):
         try:
-            final_result = self.get_all_data("entity/invoicein")
+            final_result = self.get_entity_by_updated("entity/invoicein", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_invoicein. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_invoicein. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_factureout(self, date=''):
         try:
-            final_result = self.get_all_data("entity/factureout")
+            final_result = self.get_entity_by_updated("entity/factureout", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_factureout. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_factureout. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_facturein(self, date=''):
         try:
-            final_result = self.get_all_data("entity/facturein")
+            final_result = self.get_entity_by_updated("entity/facturein", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_facturein. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_facturein. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_processingplan(self, date=''):
         try:
-            final_result = self.get_all_data("entity/processingplan")
+            final_result = self.get_entity_full("entity/processingplan")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_processingplan. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_processingplan. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_processingplanfolder(self, date=''):
         try:
-            final_result = self.get_all_data("entity/processingplanfolder")
+            final_result = self.get_entity_full("entity/processingplanfolder")
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_processingplanfolder. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_processingplanfolder. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
     def get_entity_processing(self, date=''):
         try:
-            final_result = self.get_all_data("entity/processing")
+            final_result = self.get_entity_by_updated("entity/processing", date)
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_processing. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_entity_processing. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2923,6 +2386,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_stock_bystore. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2934,6 +2399,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_stock_all_current. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2945,6 +2412,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_profit_byproduct. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2956,6 +2425,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_profit_byvariant. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2967,6 +2438,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_profit_byemployee. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2978,6 +2451,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_profit_bycounterparty. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -2989,6 +2464,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_profit_bysaleschannel. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -3000,6 +2477,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_money_byaccount. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -3011,6 +2490,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_money_plotseries. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -3022,6 +2503,8 @@ class MSKLDbyDate:
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
         except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
             message = f'Платформа: MSKLD. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_report_turnover_all. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
@@ -3029,7 +2512,7 @@ class MSKLDbyDate:
     def collecting_manager(self):
         report_list = self.reports.replace(' ', '').lower().split(',')
         for report in report_list:
-                self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
+                self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],

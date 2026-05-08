@@ -1,5 +1,6 @@
 from .common import Common
 from .clickhouse import Clickhouse
+from .db import make_db
 from .wb_reklama import WBreklama
 from .base_client import BaseMarketplaceClient
 from datetime import datetime,timedelta
@@ -365,8 +366,10 @@ class WBbyDate:
     def get_ps_report(self, task_id):
         try:
             url = f"https://seller-analytics-api.wildberries.ru/api/v1/paid_storage/tasks/{task_id}/download"
-            data = self.api._request('GET', url)
-            return data
+            response = self.api._request_raw('GET', url)
+            if not response.content:
+                return []
+            return response.json()
         except Exception as e:
             return self._log_err('get_ps_report', '', e)
 
@@ -474,7 +477,7 @@ class WBbyDate:
 
     def get_voronka_week(self, date):
         try:
-            self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port,
+            self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port,
                                          self.username, self.password,
                                          self.database, self.start, self.add_name, self.err429, self.backfill_days,
                                          self.platform)
@@ -617,7 +620,7 @@ class WBbyDate:
                                              self.database, self.start,  self.backfill_days,)
                 self.reklama.wb_reklama_collector()
             else:
-                self.clickhouse = Clickhouse(self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
+                self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type, self.host, self.port, self.username, self.password,
                                              self.database, self.start, self.add_name, self.err429, self.backfill_days, self.platform)
                 self.clickhouse.collecting_report(
                     self.source_dict[report]['platform'],
