@@ -9,16 +9,19 @@ from io import StringIO
 
 
 class YOUTUBEbyDate:
+    YOUTUBE_CLIENT_ID = '468588465628-rb54ab06irarfvf97jnkit1egd63hog1.apps.googleusercontent.com'
+    YOUTUBE_CLIENT_SECRET = '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'
+
     def __init__(self, bot_token: str = '', chats: str = '', message_type: str = '', subd: str = '',
                  host: str = '', port: str = '', username: str = '', password: str = '', database: str = '',
-                 add_name: str = '', client_id: str = '', client_secret: str = '', refresh_token: str = '',
+                 add_name: str = '', refresh_token: str = '',
                  start: str = '', backfill_days: int = 0, reports: str = ''):
         self.bot_token = bot_token
         self.chat_list = chats.replace(' ', '').split(',')
         self.message_type = message_type
         self.common = Common(self.bot_token, self.chat_list, self.message_type)
-        self.client_id = client_id
-        self.client_secret = client_secret
+        self.client_id = self.YOUTUBE_CLIENT_ID
+        self.client_secret = self.YOUTUBE_CLIENT_SECRET
         self.refresh_token = refresh_token
         self.subd = subd
         self.host = host
