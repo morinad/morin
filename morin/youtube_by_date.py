@@ -9,8 +9,10 @@ from io import StringIO
 
 
 class YOUTUBEbyDate:
-    YOUTUBE_CLIENT_ID = '468588465628-rb54ab06irarfvf97jnkit1egd63hog1.apps.googleusercontent.com'
-    YOUTUBE_CLIENT_SECRET = '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'
+    OAUTH_CREDENTIALS = [
+        ('468588465628-rb54ab06irarfvf97jnkit1egd63hog1.apps.googleusercontent.com', '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'),
+        ('468588465628-migi9b7asc266ro3ucm2r689nuk4o8hl.apps.googleusercontent.com', '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'),
+    ]
 
     def __init__(self, bot_token: str = '', chats: str = '', message_type: str = '', subd: str = '',
                  host: str = '', port: str = '', username: str = '', password: str = '', database: str = '',
@@ -20,9 +22,8 @@ class YOUTUBEbyDate:
         self.chat_list = chats.replace(' ', '').split(',')
         self.message_type = message_type
         self.common = Common(self.bot_token, self.chat_list, self.message_type)
-        self.client_id = self.YOUTUBE_CLIENT_ID
-        self.client_secret = self.YOUTUBE_CLIENT_SECRET
         self.refresh_token = refresh_token
+        self._working_creds_idx = None
         self.subd = subd
         self.host = host
         self.port = port
@@ -146,32 +147,65 @@ class YOUTUBEbyDate:
         self.common.log_func(self.bot_token, self.chat_list, message, 3)
         return message
 
-    def _get_access_token(self):
+    def _update_auth_headers(self):
+        auth_header = f'Bearer {self.access_token}'
+        self.api.client.headers['Authorization'] = auth_header
+        self.analytics_api.client.headers['Authorization'] = auth_header
+        self.reporting_api.client.headers['Authorization'] = auth_header
+
+    def _try_creds(self, client_id, client_secret):
         try:
-            if self.access_token and self.token_acquired_at:
-                if (datetime.now() - self.token_acquired_at).total_seconds() < 3000:
-                    return self.access_token
             response = httpx.post(
                 'https://oauth2.googleapis.com/token',
                 data={
-                    'client_id': self.client_id,
-                    'client_secret': self.client_secret,
+                    'client_id': client_id,
+                    'client_secret': client_secret,
                     'refresh_token': self.refresh_token,
                     'grant_type': 'refresh_token'
                 },
                 timeout=30
             )
-            response.raise_for_status()
+            if response.status_code != 200:
+                return None, f'HTTP {response.status_code}: {response.text[:200]}'
             data = response.json()
-            self.access_token = data.get('access_token')
-            self.token_acquired_at = datetime.now()
-            auth_header = f'Bearer {self.access_token}'
-            self.api.client.headers['Authorization'] = auth_header
-            self.analytics_api.client.headers['Authorization'] = auth_header
-            return self.access_token
+            access_token = data.get('access_token')
+            if not access_token:
+                return None, f'Нет access_token в ответе: {data}'
+            return access_token, None
         except Exception as e:
-            self._log_err('_get_access_token', '', e)
-            return None
+            return None, str(e)
+
+    def _detect_working_creds(self):
+        last_error = None
+        for idx, (client_id, client_secret) in enumerate(self.OAUTH_CREDENTIALS):
+            access_token, err = self._try_creds(client_id, client_secret)
+            if access_token:
+                self._working_creds_idx = idx
+                self.access_token = access_token
+                self.token_acquired_at = datetime.now()
+                self._update_auth_headers()
+                return True
+            last_error = err
+        self._log_err('_detect_working_creds', '', f'Все пары OAuth credentials отклонены. Последняя ошибка: {last_error}')
+        return False
+
+    def _get_access_token(self):
+        if self.access_token and self.token_acquired_at:
+            if (datetime.now() - self.token_acquired_at).total_seconds() < 3000:
+                return self.access_token
+        if self._working_creds_idx is None:
+            self._detect_working_creds()
+            return self.access_token
+        client_id, client_secret = self.OAUTH_CREDENTIALS[self._working_creds_idx]
+        access_token, err = self._try_creds(client_id, client_secret)
+        if access_token:
+            self.access_token = access_token
+            self.token_acquired_at = datetime.now()
+            self._update_auth_headers()
+            return self.access_token
+        self._working_creds_idx = None
+        self._detect_working_creds()
+        return self.access_token
 
     def _get_channel_id(self):
         if self._cached_channel_id:

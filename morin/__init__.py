@@ -3,6 +3,10 @@ try:
     from .postgres import Postgres
 except ImportError:
     Postgres = None
+try:
+    from .mysql import Mysql
+except ImportError:
+    Mysql = None
 from .wb_by_date import WBbyDate
 from .yd_by_date import YDbyDate
 from .ozon_by_date import OZONbyDate
