@@ -59,7 +59,33 @@ class WBbyDate:
                 'refresh_type': 'nothing',
                 'history': True,
                 'frequency': 'Monday',
-                'delay': 60
+                'delay': 65
+            },
+            'realized_list': {
+                'platform': 'wb',
+                'report_name': 'realized_list',
+                'upload_table': 'realized_list',
+                'func_name': self.get_realized_list,
+                'uniq_columns': 'reportId',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'Monday',
+                'delay': 65
+            },
+            'realized_detail': {
+                'platform': 'wb',
+                'report_name': 'realized_detail',
+                'upload_table': 'realized_detail',
+                'func_name': self.get_realized_detail,
+                'uniq_columns': 'reportId,rrdId',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'Monday',
+                'delay': 65
             },
             'orders': {
                 'platform': 'wb',
@@ -72,7 +98,7 @@ class WBbyDate:
                 'refresh_type': 'nothing',
                 'history': True,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'sbor_orders': {
                 'platform': 'wb',
@@ -111,7 +137,7 @@ class WBbyDate:
                 'refresh_type': 'delete_all',
                 'history': False,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'excise': {
                 'platform': 'wb',
@@ -124,7 +150,7 @@ class WBbyDate:
                 'refresh_type': 'delete_all',
                 'history': False,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'sales': {
                 'platform': 'wb',
@@ -137,7 +163,7 @@ class WBbyDate:
                 'refresh_type': 'nothing',
                 'history': True,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'orders_changes': {
                 'platform': 'wb',
@@ -150,7 +176,7 @@ class WBbyDate:
                 'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'sales_changes': {
                 'platform': 'wb',
@@ -163,7 +189,7 @@ class WBbyDate:
                 'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'stocks': {
                 'platform': 'wb',
@@ -176,7 +202,7 @@ class WBbyDate:
                 'refresh_type': 'delete_all',
                 'history': False,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'cards': {
                 'platform': 'wb',
@@ -189,7 +215,7 @@ class WBbyDate:
                 'refresh_type': 'delete_all',
                 'history': False,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'stocks_history': {
                 'platform': 'wb',
@@ -202,7 +228,7 @@ class WBbyDate:
                 'refresh_type': 'nothing',
                 'history': False,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'adv_upd': {
                 'platform': 'wb',
@@ -228,7 +254,7 @@ class WBbyDate:
                 'refresh_type': 'delete_date',
                 'history': True,
                 'frequency': 'daily',
-                'delay': 60
+                'delay': 65
             },
             'voronka_week': {
                 'platform': 'wb',
@@ -463,6 +489,83 @@ class WBbyDate:
             return final_result
         except Exception as e:
             return self._log_err('get_realized', date, e)
+
+    def get_realized_list(self, date):
+        try:
+            url = 'https://finance-api.wildberries.ru/api/finance/v1/sales-reports/list'
+            date_from = self.common.shift_date(date, 7)
+            date_to = self.common.shift_date(date, 1)
+            all_rows = []
+            offset = 0
+            limit = 1000
+            for _ in range(100):
+                payload = {
+                    'dateFrom': date_from,
+                    'dateTo': date_to,
+                    'period': 'weekly',
+                    'limit': limit,
+                    'offset': offset
+                }
+                data = self.api._request('POST', url, json=payload, headers={'Authorization': f'Bearer {self.token}'})
+                if isinstance(data, list):
+                    rows = data
+                elif isinstance(data, dict):
+                    rows = data.get('data') or data.get('list') or data.get('reports') or []
+                else:
+                    rows = []
+                if not rows:
+                    break
+                all_rows.extend(rows)
+                if len(rows) < limit:
+                    break
+                offset += limit
+                time.sleep(65)
+            self._log_ok('get_realized_list', date)
+            return all_rows
+        except Exception as e:
+            return self._log_err('get_realized_list', date, e)
+
+    def get_realized_detail(self, date):
+        try:
+            url = 'https://finance-api.wildberries.ru/api/finance/v1/sales-reports/detailed'
+            date_from = self.common.shift_date(date, 7)
+            date_to = self.common.shift_date(date, 1)
+            all_rows = []
+            rrd_id = 0
+            for _ in range(200):
+                payload = {
+                    'dateFrom': date_from,
+                    'dateTo': date_to,
+                    'period': 'weekly',
+                    'limit': 100000,
+                    'rrdId': rrd_id
+                }
+                response = self.api._request_raw('POST', url, json=payload, headers={'Authorization': f'Bearer {self.token}'})
+                if response.status_code == 204:
+                    break
+                try:
+                    data = response.json()
+                except Exception:
+                    break
+                if isinstance(data, list):
+                    rows = data
+                elif isinstance(data, dict):
+                    rows = data.get('data') or []
+                else:
+                    rows = []
+                if not rows:
+                    break
+                all_rows.extend(rows)
+                last_row = rows[-1] if isinstance(rows[-1], dict) else {}
+                last_rrd = last_row.get('rrdId') or last_row.get('rrd_id')
+                if not last_rrd or last_rrd == rrd_id:
+                    break
+                rrd_id = last_rrd
+                time.sleep(65)
+            self._log_ok('get_realized_detail', date)
+            return all_rows
+        except Exception as e:
+            return self._log_err('get_realized_detail', date, e)
 
     def get_stocks(self, date=''):
         try:

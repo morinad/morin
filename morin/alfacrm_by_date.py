@@ -173,6 +173,19 @@ class ALFAbyDate:
                 'frequency': 'daily',
                 'delay': 1
             },
+            'test_result': {
+                'platform': 'alfa',
+                'report_name': 'test_result',
+                'upload_table': 'test_result',
+                'func_name': self.get_test_result,
+                'uniq_columns': 'id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',
+                'delay': 1
+            },
             'communication': {
                 'platform': 'alfa',
                 'report_name': 'communication',
@@ -644,6 +657,18 @@ class ALFAbyDate:
             raise
 
 
+    def _to_alfa_date(self, date_iso):
+        try:
+            return datetime.strptime(date_iso, '%Y-%m-%d').strftime('%d-%m-%Y')
+        except Exception:
+            return date_iso
+
+    def _to_alfa_date_dot(self, date_iso):
+        try:
+            return datetime.strptime(date_iso, '%Y-%m-%d').strftime('%d.%m.%Y')
+        except Exception:
+            return date_iso
+
     def get_basic(self, url, filter_1=None, filter_2=None, filter_3=None, filter_4=None):
         try:
             all_data = []
@@ -775,8 +800,9 @@ class ALFAbyDate:
     def get_sms(self, date):
         try:
             final_result = []
+            alfa_date = self._to_alfa_date(date)
             for branch in self.branches_list:
-                final_result += self.get_basic(f'v2api/{str(branch).strip()}/sms-message', {'date_to': self.common.shift_date(date,-1)},{'date_from': date})
+                final_result += self.get_basic(f'v2api/{str(branch).strip()}/sms-message', {'added_from': alfa_date, 'added_to': alfa_date})
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_sms. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
@@ -790,8 +816,9 @@ class ALFAbyDate:
     def get_mail(self, date):
         try:
             final_result = []
+            alfa_date = self._to_alfa_date(date)
             for branch in self.branches_list:
-                final_result += self.get_basic(f'v2api/{str(branch).strip()}/mail-message', {'date_to': self.common.shift_date(date,-1)},{'date_from': date})
+                final_result += self.get_basic(f'v2api/{str(branch).strip()}/mail-message', {'added_from': alfa_date, 'added_to': alfa_date})
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_mail. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
@@ -805,8 +832,9 @@ class ALFAbyDate:
     def get_call(self, date):
         try:
             final_result = []
+            alfa_date = self._to_alfa_date(date)
             for branch in self.branches_list:
-                final_result += self.get_basic(f'v2api/{str(branch).strip()}/phone-call', {'date_to': self.common.shift_date(date,-1)},{'date_from': date})
+                final_result += self.get_basic(f'v2api/{str(branch).strip()}/phone-call', {'added_from': alfa_date, 'added_to': alfa_date})
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_call. Результат: ОК'
             self.common.log_func(self.bot_token, self.chat_list, message, 1)
             return final_result
@@ -859,6 +887,22 @@ class ALFAbyDate:
             if hasattr(self, 'api') and self.api.err429:
                 self.err429 = True
             message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_all_call. Ошибка: {e}.'
+            self.common.log_func(self.bot_token, self.chat_list, message, 3)
+            return message
+
+    def get_test_result(self, date):
+        try:
+            final_result = []
+            alfa_date = self._to_alfa_date_dot(date)
+            for branch in self.branches_list:
+                final_result += self.get_basic(f'v2api/{str(branch).strip()}/test-result/index', {'date': alfa_date})
+            message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_test_result. Результат: ОК'
+            self.common.log_func(self.bot_token, self.chat_list, message, 1)
+            return final_result
+        except Exception as e:
+            if hasattr(self, 'api') and self.api.err429:
+                self.err429 = True
+            message = f'Платформа: ALFA. Имя: {self.add_name}. Дата: {str(date)}. Функция: get_test_result. Ошибка: {e}.'
             self.common.log_func(self.bot_token, self.chat_list, message, 3)
             return message
 
