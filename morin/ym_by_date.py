@@ -42,6 +42,7 @@ class YMbyDate:
         self.err429 = False
         self.filters = filters
         self.backfill_days = backfill_days
+        self.platform = 'ym'
         self.api = BaseMarketplaceClient(
             base_url='https://api-metrika.yandex.ru',
             headers={'Authorization': f'OAuth {self.token}'},

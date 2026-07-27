@@ -315,6 +315,201 @@ class OZONbyDate:
                 'frequency': 'daily',
                 'delay': 30
             },
+            'accrual_by_day': {
+                'platform': 'ozon',
+                'report_name': 'accrual_by_day',
+                'upload_table': 'accrual_by_day',
+                'func_name': self.get_accrual_by_day,
+                'uniq_columns': 'accrual_id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'accrual_types': {
+                'platform': 'ozon',
+                'report_name': 'accrual_types',
+                'upload_table': 'accrual_types',
+                'func_name': self.get_accrual_types,
+                'uniq_columns': 'type_id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'cluster_list': {
+                'platform': 'ozon',
+                'report_name': 'cluster_list',
+                'upload_table': 'cluster_list',
+                'func_name': self.get_cluster_list,
+                'uniq_columns': 'cluster_id,warehouse_warehouse_id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 20
+            },
+            'warehouse_ozon_list': {
+                'platform': 'ozon',
+                'report_name': 'warehouse_ozon_list',
+                'upload_table': 'warehouse_ozon_list',
+                'func_name': self.get_warehouse_ozon_list,
+                'uniq_columns': 'warehouse_id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 20
+            },
+            'warehouse_list': {
+                'platform': 'ozon',
+                'report_name': 'warehouse_list',
+                'upload_table': 'warehouse_list',
+                'func_name': self.get_warehouse_list,
+                'uniq_columns': 'warehouse_id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 20
+            },
+            'cancel_reason_list': {
+                'platform': 'ozon',
+                'report_name': 'cancel_reason_list',
+                'upload_table': 'cancel_reason_list',
+                'func_name': self.get_cancel_reason_list,
+                'uniq_columns': 'id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 20
+            },
+            'product_prices': {
+                'platform': 'ozon',
+                'report_name': 'product_prices',
+                'upload_table': 'product_prices',
+                'func_name': self.get_product_prices,
+                'uniq_columns': 'product_id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'actions_list': {
+                'platform': 'ozon',
+                'report_name': 'actions_list',
+                'upload_table': 'actions_list',
+                'func_name': self.get_actions_list,
+                'uniq_columns': 'id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 20
+            },
+            'review_list': {
+                'platform': 'ozon',
+                'report_name': 'review_list',
+                'upload_table': 'review_list',
+                'func_name': self.get_review_list,
+                'uniq_columns': 'id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'product_attributes': {
+                'platform': 'ozon',
+                'report_name': 'product_attributes',
+                'upload_table': 'product_attributes',
+                'func_name': self.get_product_attributes,
+                'uniq_columns': 'id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'analytics_manage_stocks': {
+                'platform': 'ozon',
+                'report_name': 'analytics_manage_stocks',
+                'upload_table': 'analytics_manage_stocks',
+                'func_name': self.get_analytics_manage_stocks,
+                'uniq_columns': 'sku',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'supply_order_list': {
+                'platform': 'ozon',
+                'report_name': 'supply_order_list',
+                'upload_table': 'supply_order_list',
+                'func_name': self.get_supply_order_list,
+                'uniq_columns': 'supply_order_id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'product_stocks_fbs': {
+                'platform': 'ozon',
+                'report_name': 'product_stocks_fbs',
+                'upload_table': 'product_stocks_fbs',
+                'func_name': self.get_product_stocks_fbs,
+                'uniq_columns': 'sku,warehouse_id',
+                'partitions': '',
+                'merge_type': 'MergeTree',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'actions_products': {
+                'platform': 'ozon',
+                'report_name': 'actions_products',
+                'upload_table': 'actions_products',
+                'func_name': self.get_actions_products,
+                'uniq_columns': 'action_id,id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'delete_all',
+                'history': False,
+                'frequency': 'daily',
+                'delay': 30
+            },
+            'accrual_postings': {
+                'platform': 'ozon',
+                'report_name': 'accrual_postings',
+                'upload_table': 'accrual_postings',
+                'func_name': self.get_accrual_postings,
+                'uniq_columns': 'posting_number,accrual_id',
+                'partitions': '',
+                'merge_type': 'ReplacingMergeTree(timeStamp)',
+                'refresh_type': 'nothing',
+                'history': True,
+                'frequency': 'daily',
+                'delay': 30
+            },
         }
 
     def _log_ok(self, func_name, date=''):
@@ -873,6 +1068,344 @@ class OZONbyDate:
             return self.common.spread_table(all_cashflows)
         except Exception as e:
             return self._log_err('get_finance_cashflow', date, e)
+
+    def get_accrual_by_day(self, date):
+        try:
+            all_rows = []
+            last_id = ''
+            for _ in range(500):
+                data = self.api._request('POST', '/v1/finance/accrual/by-day', json={
+                    'date': date,
+                    'last_id': last_id
+                })
+                accruals = data.get('accruals', []) or []
+                if not accruals:
+                    break
+                all_rows.extend(accruals)
+                next_last_id = data.get('last_id', '') or ''
+                if not next_last_id or next_last_id == last_id:
+                    break
+                last_id = next_last_id
+                time.sleep(1)
+            self._log_ok('get_accrual_by_day', date)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(self.common.spread_table(all_rows))))
+        except Exception as e:
+            return self._log_err('get_accrual_by_day', date, e)
+
+    def get_accrual_types(self, date=''):
+        try:
+            data = self.api._request('POST', '/v1/finance/accrual/types', json={})
+            result = data.get('result', []) or data.get('types', []) or []
+            if not result and isinstance(data, list):
+                result = data
+            self._log_ok('get_accrual_types', date)
+            return self.common.spread_table(self.common.spread_table(result))
+        except Exception as e:
+            return self._log_err('get_accrual_types', date, e)
+
+    def get_cluster_list(self, date=''):
+        try:
+            data = self.api._request('POST', '/v1/cluster/list', json={'cluster_type': 'CLUSTER_TYPE_OZON'})
+            clusters = data.get('clusters') or []
+            result = []
+            for cluster in clusters:
+                cluster_base = {k: v for k, v in cluster.items() if k != 'logistic_clusters'}
+                logistic = cluster.get('logistic_clusters') or []
+                if not logistic:
+                    result.append(cluster_base)
+                    continue
+                for lc in logistic:
+                    lc_base = {k: v for k, v in lc.items() if k != 'warehouses'}
+                    warehouses = lc.get('warehouses') or []
+                    if not warehouses:
+                        row = dict(cluster_base)
+                        for k, v in lc_base.items():
+                            row[f'logistic_{k}'] = v
+                        result.append(row)
+                        continue
+                    for wh in warehouses:
+                        row = dict(cluster_base)
+                        for k, v in lc_base.items():
+                            row[f'logistic_{k}'] = v
+                        for k, v in wh.items():
+                            row[f'warehouse_{k}'] = v
+                        result.append(row)
+            self._log_ok('get_cluster_list', date)
+            return self.common.spread_table(self.common.spread_table(result))
+        except Exception as e:
+            return self._log_err('get_cluster_list', date, e)
+
+    def get_warehouse_ozon_list(self, date=''):
+        try:
+            data = self.api._request('POST', '/v1/warehouse/ozon/list', json={})
+            result = data.get('warehouses') or data.get('result') or []
+            if not result and isinstance(data, list):
+                result = data
+            self._log_ok('get_warehouse_ozon_list', date)
+            return self.common.spread_table(self.common.spread_table(result))
+        except Exception as e:
+            return self._log_err('get_warehouse_ozon_list', date, e)
+
+    def get_warehouse_list(self, date=''):
+        try:
+            data = self.api._request('POST', '/v2/warehouse/list', json={})
+            result = data.get('result') or data.get('warehouses') or []
+            if not result and isinstance(data, list):
+                result = data
+            self._log_ok('get_warehouse_list', date)
+            return self.common.spread_table(self.common.spread_table(result))
+        except Exception as e:
+            return self._log_err('get_warehouse_list', date, e)
+
+    def get_cancel_reason_list(self, date=''):
+        try:
+            data = self.api._request('POST', '/v1/cancel-reason/list', json={})
+            result = data.get('result') or data.get('reasons') or []
+            if not result and isinstance(data, list):
+                result = data
+            self._log_ok('get_cancel_reason_list', date)
+            return self.common.spread_table(result)
+        except Exception as e:
+            return self._log_err('get_cancel_reason_list', date, e)
+
+    def get_product_prices(self, date=''):
+        try:
+            all_items = []
+            cursor = ''
+            limit = 1000
+            for _ in range(500):
+                payload = {'cursor': cursor, 'limit': limit, 'filter': {'visibility': 'ALL'}}
+                data = self.api._request('POST', '/v5/product/info/prices', json=payload)
+                items = data.get('items') or (data.get('result') or {}).get('items') or []
+                if not items:
+                    break
+                all_items.extend(items)
+                cursor = data.get('cursor') or (data.get('result') or {}).get('cursor') or ''
+                if not cursor:
+                    break
+                time.sleep(0.5)
+            self._log_ok('get_product_prices', date)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_items)))
+        except Exception as e:
+            return self._log_err('get_product_prices', date, e)
+
+    def get_actions_list(self, date=''):
+        try:
+            data = self.api._request('GET', '/v1/actions')
+            result = data.get('result') or data.get('actions') or []
+            if not result and isinstance(data, list):
+                result = data
+            self._log_ok('get_actions_list', date)
+            return self.common.spread_table(self.common.spread_table(result))
+        except Exception as e:
+            return self._log_err('get_actions_list', date, e)
+
+    def get_review_list(self, date=''):
+        try:
+            all_items = []
+            last_id = ''
+            limit = 100
+            for _ in range(500):
+                payload = {'limit': limit, 'last_id': last_id, 'sort_dir': 'ASC'}
+                data = self.api._request('POST', '/v2/review/list', json=payload)
+                items = data.get('reviews') or data.get('result') or []
+                if not items:
+                    break
+                all_items.extend(items)
+                next_id = data.get('last_id') or (data.get('result') or {}).get('last_id') or ''
+                if not next_id or next_id == last_id:
+                    break
+                last_id = next_id
+                time.sleep(0.5)
+            self._log_ok('get_review_list', date)
+            return self.common.spread_table(self.common.spread_table(all_items))
+        except Exception as e:
+            return self._log_err('get_review_list', date, e)
+
+    def get_product_attributes(self, date=''):
+        try:
+            all_items = []
+            last_id = ''
+            limit = 1000
+            for _ in range(500):
+                payload = {'filter': {'visibility': 'ALL'}, 'limit': limit, 'last_id': last_id, 'sort_dir': 'ASC'}
+                data = self.api._request('POST', '/v4/product/info/attributes', json=payload)
+                items = data.get('result') or []
+                if not items:
+                    break
+                all_items.extend(items)
+                total = data.get('total', 0)
+                next_id = data.get('last_id') or ''
+                if not next_id or next_id == last_id:
+                    break
+                last_id = next_id
+                if len(all_items) >= total > 0:
+                    break
+                time.sleep(0.5)
+            self._log_ok('get_product_attributes', date)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_items)))
+        except Exception as e:
+            return self._log_err('get_product_attributes', date, e)
+
+    def get_analytics_manage_stocks(self, date=''):
+        try:
+            all_items = []
+            offset = 0
+            limit = 1000
+            for _ in range(500):
+                payload = {'limit': limit, 'offset': offset, 'filter': {}}
+                data = self.api._request('POST', '/v1/analytics/manage/stocks', json=payload)
+                items = data.get('items') or (data.get('result') or {}).get('items') or []
+                if not items:
+                    break
+                all_items.extend(items)
+                if len(items) < limit:
+                    break
+                offset += limit
+                time.sleep(0.5)
+            self._log_ok('get_analytics_manage_stocks', date)
+            return self.common.spread_table(self.common.spread_table(all_items))
+        except Exception as e:
+            return self._log_err('get_analytics_manage_stocks', date, e)
+
+    def get_product_stocks_fbs(self, date=''):
+        try:
+            all_items = []
+            cursor = ''
+            limit = 500
+            for _ in range(500):
+                payload = {'cursor': cursor, 'limit': limit}
+                data = self.api._request('POST', '/v1/product/info/warehouse/stocks', json=payload)
+                items = data.get('items') or (data.get('result') or {}).get('items') or []
+                if not items:
+                    break
+                for item in items:
+                    stocks = item.get('stocks') or []
+                    base = {k: v for k, v in item.items() if k != 'stocks'}
+                    if not stocks:
+                        all_items.append(base)
+                        continue
+                    for s in stocks:
+                        row = dict(base)
+                        for k, v in s.items():
+                            row[k] = v
+                        all_items.append(row)
+                cursor = data.get('cursor') or (data.get('result') or {}).get('cursor') or ''
+                if not cursor:
+                    break
+                time.sleep(0.5)
+            self._log_ok('get_product_stocks_fbs', date)
+            return self.common.spread_table(self.common.spread_table(all_items))
+        except Exception as e:
+            return self._log_err('get_product_stocks_fbs', date, e)
+
+    def get_actions_products(self, date=''):
+        try:
+            self.clickhouse = make_db(self.subd, self.bot_token, self.chat_list, self.message_type,
+                                      self.host, self.port, self.username, self.password, self.database,
+                                      self.start, self.add_name, self.err429, self.backfill_days, 'ozon')
+            action_ids = []
+            try:
+                rows = self.clickhouse.get_table_data(f'ozon_actions_list_{self.add_name}', ['id'])
+                if rows:
+                    action_ids = [int(r['id']) for r in rows if r.get('id')]
+            except Exception:
+                action_ids = []
+
+            if not action_ids:
+                try:
+                    data = self.api._request('GET', '/v1/actions')
+                    actions = data.get('result') or data.get('actions') or []
+                    action_ids = [int(a.get('id')) for a in actions if a.get('id')]
+                except Exception:
+                    action_ids = []
+
+            all_rows = []
+            for aid in action_ids:
+                last_id = 0
+                limit = 100
+                for _ in range(500):
+                    payload = {'action_id': aid, 'last_id': last_id, 'limit': limit}
+                    try:
+                        data = self.api._request('POST', '/v1/actions/products', json=payload)
+                    except Exception as e:
+                        message = f'Платформа: OZON. Имя: {self.add_name}. Функция: get_actions_products. Action: {aid}. Ошибка: {e}.'
+                        self.common.log_func(self.bot_token, self.chat_list, message, 3)
+                        break
+                    products = (data.get('result') or {}).get('products') or data.get('products') or []
+                    if not products:
+                        break
+                    for p in products:
+                        p['action_id'] = aid
+                        all_rows.append(p)
+                    next_last_id = (data.get('result') or {}).get('last_id') or data.get('last_id') or 0
+                    if not next_last_id or next_last_id == last_id:
+                        break
+                    last_id = next_last_id
+                    time.sleep(0.5)
+                time.sleep(0.5)
+            self._log_ok('get_actions_products', date)
+            return self.common.spread_table(self.common.spread_table(all_rows))
+        except Exception as e:
+            return self._log_err('get_actions_products', date, e)
+
+    def get_accrual_postings(self, date):
+        try:
+            all_rows = []
+            last_id = ''
+            limit = 100
+            for _ in range(500):
+                payload = {'date': date, 'last_id': last_id, 'limit': limit}
+                data = self.api._request('POST', '/v1/finance/accrual/postings', json=payload)
+                postings = data.get('postings') or data.get('items') or (data.get('result') or {}).get('postings') or []
+                if not postings:
+                    break
+                all_rows.extend(postings)
+                next_last_id = data.get('last_id') or (data.get('result') or {}).get('last_id') or ''
+                if not next_last_id or next_last_id == last_id:
+                    break
+                last_id = next_last_id
+                time.sleep(1)
+            self._log_ok('get_accrual_postings', date)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_rows)))
+        except Exception as e:
+            return self._log_err('get_accrual_postings', date, e)
+
+    def get_supply_order_list(self, date=''):
+        try:
+            all_ids = []
+            last_id = 0
+            limit = 100
+            for _ in range(500):
+                payload = {'paging': {'from_supply_order_id': last_id, 'limit': limit}, 'filter': {}}
+                data = self.api._request('POST', '/v3/supply-order/list', json=payload)
+                ids = data.get('supply_order_id') or (data.get('result') or {}).get('supply_order_id') or []
+                if not ids:
+                    ids = data.get('supply_orders') or []
+                if not ids:
+                    break
+                normalized = [i if isinstance(i, int) else (i.get('supply_order_id') if isinstance(i, dict) else None) for i in ids]
+                normalized = [i for i in normalized if i]
+                all_ids.extend(normalized)
+                if len(ids) < limit:
+                    break
+                last_id = normalized[-1] if normalized else 0
+                if not last_id:
+                    break
+                time.sleep(0.5)
+
+            all_rows = []
+            for i in range(0, len(all_ids), 50):
+                chunk = all_ids[i:i + 50]
+                data = self.api._request('POST', '/v3/supply-order/get', json={'order_ids': chunk})
+                orders = data.get('orders') or (data.get('result') or {}).get('orders') or []
+                all_rows.extend(orders)
+                time.sleep(0.5)
+
+            self._log_ok('get_supply_order_list', date)
+            return self.common.spread_table(self.common.spread_table(self.common.spread_table(all_rows)))
+        except Exception as e:
+            return self._log_err('get_supply_order_list', date, e)
 
     def get_products_buyout(self, date):
         try:

@@ -42,6 +42,7 @@ class YDbyDate:
         self.err429 = False
         self.attributions = attributions
         self.backfill_days = backfill_days
+        self.platform = 'yd'
         self.api = BaseMarketplaceClient(
             base_url='https://api.direct.yandex.com',
             headers={

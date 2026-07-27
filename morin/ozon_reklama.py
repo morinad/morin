@@ -352,6 +352,7 @@ class OZONreklama:
         if names_code == 200:
             adv_type_map = {
                 'SEARCH_PROMO': 'sp',
+                'ALL_SKU_PROMO': 'all_skup',
                 'SKU': 'sku',
                 'BANNER': 'banner',
                 'BRAND_SHELF': 'shelf',
@@ -461,7 +462,12 @@ class OZONreklama:
                                     self.client.command(optimize_collection)
                                 elif ozon_json == 400 and c_type == 'sp':
                                     message = f'Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Кампании SEARCH_PROMO не поддерживаются через /api/client/statistics. Используйте отчёты perf_orders и perf_products.'
-                                    self.common.log_func(self.bot_token, self.chat_list, message, 2)
+                                    self.common.log_func(self.bot_token, self.chat_list, message, 1)
+                                    if len(success_list) > 0:
+                                        self.client.insert(f'ozon_ads_collection_{self.add_name}', [tuple(x) for x in df_success.to_numpy()], column_names=df_success.columns.tolist())
+                                elif ozon_json == 400 and c_type == 'all_skup':
+                                    message = f'Платформа: OZON_ADS. Имя: {self.add_name}. Дата: {str(sql_date)}. Кампании ALL_SKU_PROMO не поддерживаются через /api/client/statistics. Используйте отчёты perf_orders_all и perf_products_all.'
+                                    self.common.log_func(self.bot_token, self.chat_list, message, 1)
                                     if len(success_list) > 0:
                                         self.client.insert(f'ozon_ads_collection_{self.add_name}', [tuple(x) for x in df_success.to_numpy()], column_names=df_success.columns.tolist())
                                 elif ozon_json == 400:

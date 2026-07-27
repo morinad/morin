@@ -13,6 +13,43 @@ class YOUTUBEbyDate:
         ('468588465628-rb54ab06irarfvf97jnkit1egd63hog1.apps.googleusercontent.com', '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'),
         ('468588465628-migi9b7asc266ro3ucm2r689nuk4o8hl.apps.googleusercontent.com', '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'),
     ]
+    OAUTH_REDIRECT_URI = 'http://127.0.0.1:9004'
+    OAUTH_SCOPES = ' '.join([
+        'https://www.googleapis.com/auth/youtube.readonly',
+        'https://www.googleapis.com/auth/yt-analytics.readonly',
+    ])
+
+    @classmethod
+    def get_refresh_token(cls, code: str):
+        import urllib.parse
+        try:
+            code = (code or '').strip()
+            if not code:
+                return None
+            for client_id, client_secret in cls.OAUTH_CREDENTIALS:
+                try:
+                    body = urllib.parse.urlencode({
+                        'code': code,
+                        'client_id': client_id,
+                        'client_secret': client_secret,
+                        'redirect_uri': cls.OAUTH_REDIRECT_URI,
+                        'grant_type': 'authorization_code',
+                    })
+                    resp = httpx.post(
+                        'https://accounts.google.com/o/oauth2/token',
+                        content=body,
+                        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                        timeout=30
+                    )
+                    if resp.status_code == 200:
+                        token = resp.json().get('refresh_token')
+                        if token:
+                            return token
+                except Exception:
+                    continue
+            return None
+        except Exception:
+            return None
 
     def __init__(self, bot_token: str = '', chats: str = '', message_type: str = '', subd: str = '',
                  host: str = '', port: str = '', username: str = '', password: str = '', database: str = '',
